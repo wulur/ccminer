@@ -160,7 +160,7 @@ extern "C" int scanhash_x11(int thr_id, uint32_t *pdata,
 		quark_groestl512_cpu_init(thr_id, throughput);
 		quark_bmw512_cpu_init(thr_id, throughput);
 		x11_echo512_cpu_init(thr_id, throughput);
-		if (x11_simd512_cpu_init(thr_id, throughput>>1) != 0) {
+		if (x11_simd512_cpu_init(thr_id, throughput) != 0) {
 			return 0;
 		}
 		CUDA_CALL_OR_RET_X(cudaMalloc(&d_hash[thr_id], 64 * throughput), 0); // why 64 ?
@@ -184,7 +184,6 @@ extern "C" int scanhash_x11(int thr_id, uint32_t *pdata,
 		x11_luffaCubehash512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
 		x11_shavite512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
 		x11_simd512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order);
-
 		x11_echo512_cpu_hash_64_final(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], ptarget[7], h_found[thr_id], order++);
 		if (h_found[thr_id][0] != 0xffffffff)
 		{
