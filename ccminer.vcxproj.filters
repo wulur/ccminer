@@ -70,6 +70,9 @@
     <Filter Include="Header Files\lyra2">
       <UniqueIdentifier>{2ff6e4ce-7c92-4cb2-a3ad-c331e94fd81d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\CUDA\pluck">
+      <UniqueIdentifier>{59eb6b57-944a-425e-920a-bb168e950c45}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="compat\jansson\dump.c">
@@ -362,6 +365,9 @@
     <ClInclude Include="lyra2\Sponge.h">
       <Filter>Header Files\lyra2</Filter>
     </ClInclude>
+    <ClInclude Include="cuda_vector.h">
+      <Filter>Header Files\CUDA</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cuda.cpp">
@@ -558,6 +564,12 @@
     </CudaCompile>
     <CudaCompile Include="bitcoin.cu">
       <Filter>Source Files\CUDA</Filter>
+    </CudaCompile>
+    <CudaCompile Include="pluck\cuda_pluck.cu">
+      <Filter>Source Files\CUDA\pluck</Filter>
+    </CudaCompile>
+    <CudaCompile Include="pluck\pluck.cu">
+      <Filter>Source Files\CUDA\pluck</Filter>
     </CudaCompile>
   </ItemGroup>
 </Project>

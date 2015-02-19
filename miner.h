@@ -375,6 +375,18 @@ extern int scanhash_x15(int thr_id, uint32_t *pdata,
 	const uint32_t *ptarget, uint32_t max_nonce,
 	unsigned long *hashes_done);
 
+extern int scanhash_neoscrypt(bool stratum,int thr_id, uint32_t *pdata,
+	const uint32_t *ptarget, uint32_t max_nonce,
+	unsigned long *hashes_done);
+
+extern int scanhash_pluck(int thr_id, uint32_t *pdata,
+	const uint32_t *ptarget, uint32_t max_nonce,
+	unsigned long *hashes_done);
+
+
+	const uint32_t *ptarget, uint32_t max_nonce,
+	unsigned long *hashes_done);
+
 extern int scanhash_x17(int thr_id, uint32_t *pdata,
 	const uint32_t *ptarget, uint32_t max_nonce,
 	unsigned long *hashes_done);
@@ -490,6 +502,13 @@ extern struct work_restart *work_restart;
 extern bool opt_trust_pool;
 extern uint16_t opt_vote;
 
+#define JSON_RPC_LONGPOLL	(1 << 0)
+#define JSON_RPC_QUIET_404	(1 << 1)
+extern bool opt_redirect;
+extern bool have_gbt;
+extern bool allow_getwork;
+extern bool opt_redirect;
+
 extern uint64_t global_hashrate;
 extern double   global_diff;
 
@@ -527,15 +546,19 @@ extern uint32_t gpus_intensity[MAX_GPUS];
 #define CL_LBL  "\x1B[01;34m" /* light blue */
 #define CL_LMA  "\x1B[01;35m" /* light magenta */
 #define CL_LCY  "\x1B[01;36m" /* light cyan */
-
 #define CL_WHT  "\x1B[01;37m" /* white */
 
 extern void applog(int prio, const char *fmt, ...);
 extern json_t *json_rpc_call(CURL *curl, const char *url, const char *userpass,
 	const char *rpc_req, bool, bool, int *);
+extern json_t *json_rpc_call2(CURL *curl, const char *url, const char *userpass,
+	const char *rpc_req, int *curl_err, int flags);
 extern void cbin2hex(char *out, const char *in, size_t len);
 extern char *bin2hex(const unsigned char *in, size_t len);
+
 extern bool hex2bin(unsigned char *p, const char *hexstr, size_t len);
+extern int varint_encode(unsigned char *p, uint64_t n);
+extern size_t address_to_script(unsigned char *out, size_t outsz, const char *addr);
 extern int timeval_subtract(struct timeval *result, struct timeval *x,
 	struct timeval *y);
 extern bool fulltest(const uint32_t *hash, const uint32_t *target);

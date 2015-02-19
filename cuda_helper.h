@@ -504,13 +504,14 @@ __device__ __inline__ uint2 ROR2(const uint2 a, const int offset)
 	else {
 		asm("shf.r.wrap.b32 %0, %1, %2, %3;" : "=r"(result.x) : "r"(a.y), "r"(a.x), "r"(offset));
 		asm("shf.r.wrap.b32 %0, %1, %2, %3;" : "=r"(result.y) : "r"(a.x), "r"(a.y), "r"(offset));
+		
 	}
 	return result;
 }
 #else
 __device__ __inline__ uint2 ROR2(const uint2 v, const int n) 
 {
-	uint2 result;
+		uint2 result;
 	if (n <= 32) 
 	{
 		result.y = ((v.y >> (n)) | (v.x << (32 - n)));
@@ -521,8 +522,8 @@ __device__ __inline__ uint2 ROR2(const uint2 v, const int n)
 		result.y = ((v.x >> (n - 32)) | (v.y << (64 - n)));
 		result.x = ((v.y >> (n - 32)) | (v.x << (64 - n)));
 	}
-	return result;
-}
+		return result;
+	}
 #endif
 
 #if  __CUDA_ARCH__ >= 350
@@ -530,13 +531,13 @@ __inline__ __device__ uint2 ROL2(const uint2 a, const int offset) {
 	uint2 result;
 	if (offset >= 32) {
 		asm("shf.l.wrap.b32 %0, %1, %2, %3;" : "=r"(result.x) : "r"(a.x), "r"(a.y), "r"(offset));
-		asm("shf.l.wrap.b32 %0, %1, %2, %3;" : "=r"(result.y) : "r"(a.y), "r"(a.x), "r"(offset));
+		asm("shf.l.wrap.b32 %0, %1, %2, %3;" : "=r"(result.y) : "r"(a.y), "r"(a.x), "r"(offset));        
 	}
 	else {
 		asm("shf.l.wrap.b32 %0, %1, %2, %3;" : "=r"(result.x) : "r"(a.y), "r"(a.x), "r"(offset));
 		asm("shf.l.wrap.b32 %0, %1, %2, %3;" : "=r"(result.y) : "r"(a.x), "r"(a.y), "r"(offset));
 	}
-	return result;
+return result;
 }
 #else
 __inline__ __device__ uint2 ROL2(const uint2 v, const int n)
@@ -553,7 +554,7 @@ __inline__ __device__ uint2 ROL2(const uint2 v, const int n)
 			result.x = ((v.y << (n - 32)) | (v.x >> (64 - n)));
 		}
 		return result;
-}
+	}
 #endif
 
 __device__ __forceinline__
@@ -710,7 +711,7 @@ __device__ __forceinline__ uint32_t devectorize16(ushort2 x)
 		: "=r"(result) : "h"(x.x) , "h"(x.y));
 	return result;
 }
-
+///////////////////////////////////////////////////////////////////////////////////
 
 __device__ __forceinline__ ushort2 vectorize16(uint32_t x)
 {
@@ -719,7 +720,6 @@ __device__ __forceinline__ ushort2 vectorize16(uint32_t x)
 		: "=h"(result.x), "=h"(result.y) : "r"(x));
 	return result;
 }
-
 
 #endif // #ifndef CUDA_HELPER_H
 
