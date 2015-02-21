@@ -13,6 +13,7 @@ extern "C" {
 #include <pthread.h>
 #include <jansson.h>
 #include <curl/curl.h>
+#include <stdint.h>
 
 #ifdef WIN32
 #define snprintf(...) _snprintf(__VA_ARGS__)
@@ -53,21 +54,6 @@ void *alloca (size_t);
 #endif
 
 #include "compat.h"
-
-#ifdef __INTELLISENSE__
-/* should be in stdint.h but... */
-typedef __int64 int64_t;
-typedef unsigned __int64 uint64_t;
-typedef __int32 int32_t;
-typedef unsigned __int32 uint32_t;
-typedef __int16 int16_t;
-typedef unsigned __int16 uint16_t;
-typedef __int16 int8_t;
-typedef unsigned __int16 uint8_t;
-
-typedef unsigned __int32 time_t;
-typedef char *  va_list;
-#endif
 
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ > 0
 # define _ALIGN(x) __align__(x)
@@ -380,10 +366,6 @@ extern int scanhash_neoscrypt(bool stratum,int thr_id, uint32_t *pdata,
 	unsigned long *hashes_done);
 
 extern int scanhash_pluck(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-
 	const uint32_t *ptarget, uint32_t max_nonce,
 	unsigned long *hashes_done);
 

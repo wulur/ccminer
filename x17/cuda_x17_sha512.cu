@@ -42,8 +42,8 @@
 
 #define SWAP64(u64) cuda_swab64(u64)
 
-#define SPH_ROTL32(x, n)  ((x) << (n)) | ((x) >> (32 - (n)))
-#define SPH_ROTR32(x, n)  SPH_ROTL32(x, (32 - (n)))
+#define SPH_ROTL32(x, n)  ROTL32(x,n)
+#define SPH_ROTR32(x, n)  ROTR32(x,n)
 
 static __constant__ uint64_t H_512[8];
 

@@ -43,8 +43,8 @@
 
 #include "cuda_helper.h"
 
-#define SPH_ROTL32(x, n)   (((x) << (n)) | ((x) >> (32 - (n))))
-#define SPH_ROTR32(x, n)   SPH_ROTL32(x, (32 - (n)))
+#define SPH_ROTL32(x, n)   ROTL32(x,n)
+#define SPH_ROTR32(x, n)   ROTR32(x,n)
 
 static __constant__ uint32_t initVector[8];
 

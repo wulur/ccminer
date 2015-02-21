@@ -16,6 +16,7 @@ uint32_t atomicExch(uint32_t *x, uint32_t y);
 uint32_t atomicAdd(uint32_t *x, uint32_t y);
 void __syncthreads(void);
 void __threadfence(void);
+#define __ldg(x) (*(x))
 #endif
 
 #ifndef MAX_GPUS
@@ -67,7 +68,13 @@ extern cudaError_t MyStreamSynchronize(cudaStream_t stream, int situation, int t
 // Kepler (Compute 3.5, 5.0)
 #define ROTL32(x, n) __funnelshift_l( (x), (x), (n) )
 #endif
-
+#if __CUDA_ARCH__ < 320
+// Kepler (Compute 3.0)
+#define ROTR32(x, n) ((x) >> (n)) | ((x) << (32 - (n)))
+#else
+// Kepler (Compute 3.5, 5.0)
+#define ROTR32(x, n) __funnelshift_r( (x), (x), (n) )
+#endif
 
 __device__ __forceinline__ uint64_t MAKE_ULONGLONG(uint32_t LO, uint32_t HI)
 {
@@ -235,6 +242,18 @@ uint64_t xor3(const uint64_t a, const uint64_t b, const uint64_t c)
 #define xor3(a,b,c) (a ^ b ^ c)
 #endif
 
+__forceinline__ __device__ uint32_t xor3b(uint32_t a, uint32_t b, uint32_t c)
+{
+	uint32_t result;
+	asm("{\n\t"
+		" .reg .u32 t1;\n\t"
+		"xor.b32 t1, %2, %3;\n\t"
+		"xor.b32 %0, %1, t1;\n\t"
+		"}"
+		: "=r"(result) : "r"(a), "r"(b), "r"(c));
+	return result;
+}
+
 #if USE_XOR_ASM_OPTS
 // device asm for whirpool
 __device__ __forceinline__
@@ -303,6 +322,31 @@ uint64_t shl_t64(uint64_t x, uint32_t n)
 	asm("shl.b64 %0,%1,%2;\n\t"
 	: "=l"(result) : "l"(x), "r"(n));
 	return result;
+}
+
+__forceinline__ __device__ uint32_t shr_t32(uint32_t x, uint32_t n)
+{
+	uint32_t result;
+	asm("{\n\t"
+		"shr.b32 %0,%1,%2;\n\t"
+		"}\n\t"
+		: "=r"(result) : "r"(x), "r"(n));
+	return result;
+}
+
+__forceinline__ __device__ uint32_t andor32(uint32_t a, uint32_t b, uint32_t c)
+{
+	uint32_t result;
+	asm("{\n\t"
+		".reg .u32 m,n,o;\n\t"
+		"and.b32 m,  %1, %2;\n\t"
+		" or.b32 n,  %1, %2;\n\t"
+		"and.b32 o,   n, %3;\n\t"
+		" or.b32 %0,  m, o ;\n\t"
+		"}\n\t"
+		: "=r"(result) : "r"(a), "r"(b), "r"(c));
+	return result;
+
 }
 
 #ifndef USE_ROT_ASM_OPT

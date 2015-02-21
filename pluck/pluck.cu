@@ -1,33 +1,22 @@
-
-extern "C"
-{
-//#include "sph/neoscrypt.h"
 #include "miner.h"
-}
 
 #include <stdint.h>
+#include "cuda_helper.h"
 
-// aus cpu-miner.c
-extern int device_map[8];
-
-// Speicher für Input/Output der verketteten Hashfunktionen
+extern int device_map[MAX_GPUS];
 
 static uint32_t *d_hash[8] ;
- 
 
 extern void pluck_setBlockTarget(const void* data, const void *ptarget);
 extern void pluck_cpu_init(int thr_id, int threads, uint32_t *d_outputHash);
 extern uint32_t pluck_cpu_hash(int thr_id, int threads, uint32_t startNounce, int order);
   
-
-extern float tp_coef[8];
 extern bool opt_benchmark;
 
-#define ROTL(a, b) (((a) << (b)) | ((a) >> (32 - (b))))
+#define ROTL ROTL32
 //note, this is 64 bytes
 static inline void xor_salsa8(uint32_t B[16], const uint32_t Bx[16])
 {
-#define ROTL(a, b) (((a) << (b)) | ((a) >> (32 - (b))))
 	uint32_t x00, x01, x02, x03, x04, x05, x06, x07, x08, x09, x10, x11, x12, x13, x14, x15;
 	int i;
 
@@ -233,10 +222,12 @@ extern "C" int scanhash_pluck(int thr_id, uint32_t *pdata,
 	if (opt_benchmark)
 		((uint32_t*)ptarget)[7] = 0x0000ff;
 
-	const uint32_t Htarg = ptarget[7];
-	if (tp_coef[thr_id]<0) { tp_coef[thr_id]=2.45; }
-	const int throughput = (uint32_t)((float)(32*1*64*tp_coef[thr_id]));
-	static bool init[8] = {0,0,0,0,0,0,0,0};
+	int intensity = 256 * 256 * 16;
+//	if (device_sm[device_map[thr_id]] == 520)  intensity = 256 * 256 * 21 * (1);
+	uint32_t throughput = device_intensity(thr_id, __func__, intensity); // 19=256*256*8;
+	throughput = min(throughput, (max_nonce - first_nonce));
+
+	static bool init[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 	if (!init[thr_id])
 	{
 		cudaSetDevice(device_map[thr_id]); 
@@ -261,27 +252,29 @@ extern "C" int scanhash_pluck(int thr_id, uint32_t *pdata,
 	do {
 		int order = 0;
 		uint32_t foundNonce = pluck_cpu_hash(thr_id, throughput, pdata[19], order++);
-//		foundNonce = pdata[19];
 		if  (foundNonce != 0xffffffff)
 		{
-			uint32_t vhash64[8];
+//			uint32_t vhash64[8];
+//			const uint32_t Htarg = ptarget[7];
 
-//             be32enc(&endiandata[19], foundNonce);
-//             pluck(vhash64,endiandata);
-//			 printf("target %08x vhash64 %08x", ptarget[7], vhash64[7]);
-//			if ( vhash64[7] <= ptarget[7]) { // && fulltest(vhash64, ptarget)) {
+//			be32enc(&endiandata[19], foundNonce);
+//			pluck(vhash64,endiandata);
+//			if (vhash64[7] <= Htarg && fulltest(vhash64, ptarget))
+			{
+				*hashes_done = pdata[19] - first_nonce + throughput;
 				pdata[19] = foundNonce;
-				*hashes_done = foundNonce - first_nonce + 1;
 				return 1;
-//			} else {
-//				*hashes_done = foundNonce - first_nonce + 1; // keeps hashrate calculation happy
-//				applog(LOG_INFO, "GPU #%d: result for nonce $%08X does not validate on CPU!", thr_id, foundNonce);
-//			}
+			}
+/*			else
+			{
+				if (vhash64[7] != Htarg)
+				{
+					applog(LOG_WARNING, "GPU #%d: result for %08x does not validate on CPU!", thr_id, foundNonce);
+				}
+			} */
 		}
-
 		pdata[19] += throughput;
-
-	} while (pdata[19] < max_nonce && !work_restart[thr_id].restart);
+	} while (!work_restart[thr_id].restart && ((uint64_t)max_nonce > ((uint64_t)(pdata[19]) + (uint64_t)throughput)));
 
 	*hashes_done = pdata[19] - first_nonce + 1;
 	return 0;
