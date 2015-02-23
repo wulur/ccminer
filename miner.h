@@ -537,7 +537,7 @@ extern json_t *json_rpc_call2(CURL *curl, const char *url, const char *userpass,
 	const char *rpc_req, int *curl_err, int flags);
 extern void cbin2hex(char *out, const char *in, size_t len);
 extern char *bin2hex(const unsigned char *in, size_t len);
-
+extern void abin2hex(char *s, const unsigned char *p, size_t len);
 extern bool hex2bin(unsigned char *p, const char *hexstr, size_t len);
 extern int varint_encode(unsigned char *p, uint64_t n);
 extern size_t address_to_script(unsigned char *out, size_t outsz, const char *addr);
@@ -597,6 +597,9 @@ struct work {
 	uint32_t data[32];
 	uint32_t target[8];
 	uint32_t maxvote;
+
+	char *txs;
+	char *workid;
 
 	char job_id[128];
 	size_t xnonce2_len;
