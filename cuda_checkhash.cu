@@ -179,7 +179,7 @@ void cuda_check_quarkcoin_64(uint32_t threads, uint32_t startNounce, uint32_t *g
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (thread < threads)
 	{
-		const uint32_t nounce = g_nonceVector[thread];
+		const uint32_t nounce = g_nonceVector ? g_nonceVector[thread] : (startNounce + thread);
 		uint32_t hashPosition = (nounce - startNounce) << 4;
 		const uint32_t *const inpHash = &g_hash[hashPosition];
 

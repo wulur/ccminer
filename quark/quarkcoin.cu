@@ -18,7 +18,6 @@ static uint32_t *d_hash[MAX_GPUS];
 // Speicher zur Generierung der Noncevektoren für die bedingten Hashes
 static uint32_t *d_branch1Nonces[MAX_GPUS];
 static uint32_t *d_branch2Nonces[MAX_GPUS];
-static uint32_t *d_branch3Nonces[MAX_GPUS];
 
 extern void quark_blake512_cpu_init(int thr_id);
 extern void quark_blake512_cpu_setBlock_80(int thr_id, uint64_t *pdata);
@@ -163,14 +162,8 @@ extern int scanhash_quark(int thr_id, uint32_t *pdata,
 		// Konstanten kopieren, Speicher belegen
 		CUDA_SAFE_CALL(cudaMalloc(&d_hash[thr_id], 16 * sizeof(uint32_t) * throughput));
 		CUDA_SAFE_CALL(cudaMallocHost(&foundnonces, 2 * 4));
-//		CUDA_SAFE_CALL(cudaMalloc(&d_branch1Nonces[thr_id], sizeof(uint32_t)*throughput));
-//		CUDA_SAFE_CALL(cudaMalloc(&d_branch2Nonces[thr_id], sizeof(uint32_t)*throughput));
-		uint32_t noncebuffersize = throughput * 7 / 10;
-		uint32_t noncebuffersize2 = (throughput * 7 / 10)*7/10;
-
-		CUDA_SAFE_CALL(cudaMalloc(&d_branch1Nonces[thr_id], sizeof(uint32_t)*noncebuffersize2));
-		CUDA_SAFE_CALL(cudaMalloc(&d_branch2Nonces[thr_id], sizeof(uint32_t)*noncebuffersize2));
-		CUDA_SAFE_CALL(cudaMalloc(&d_branch3Nonces[thr_id], sizeof(uint32_t)*noncebuffersize));
+		CUDA_SAFE_CALL(cudaMalloc(&d_branch1Nonces[thr_id], sizeof(uint32_t)*throughput));
+		CUDA_SAFE_CALL(cudaMalloc(&d_branch2Nonces[thr_id], sizeof(uint32_t)*throughput));
 		quark_blake512_cpu_init(thr_id);
 		quark_groestl512_cpu_init(thr_id, throughput);
 		quark_bmw512_cpu_init(thr_id, throughput);
@@ -190,25 +183,28 @@ extern int scanhash_quark(int thr_id, uint32_t *pdata,
 
 	do {
 
-		uint32_t nrm1 = 0, nrm2 = 0, nrm3 = 0;
+		uint32_t nrm1 = 0, nrm2 = 0;
 
 		quark_blake512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id]);
 		quark_bmw512_cpu_hash_64_quark(thr_id, throughput, pdata[19], NULL, d_hash[thr_id]);
 
-		quark_compactTest_single_false_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id], NULL,
-			d_branch3Nonces[thr_id], &nrm3);
+		// quarkNonces in branch1 und branch2 aufsplitten gemäss if (hash[0] & 0x8)
+		quark_compactTest_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id], NULL,
+									  d_branch1Nonces[thr_id], &nrm1,
+									  d_branch2Nonces[thr_id], &nrm2);
 
 		// nur den Skein Branch weiterverfolgen
-		quark_skein512_cpu_hash_64(thr_id, nrm3, pdata[19], d_branch3Nonces[thr_id], d_hash[thr_id]);
+		quark_skein512_cpu_hash_64(thr_id, nrm2, pdata[19], d_branch2Nonces[thr_id], d_hash[thr_id]);
 
-		// das ist der unbedingte Branch für Groestl512
-		quark_groestl512_cpu_hash_64(thr_id, nrm3, pdata[19], d_branch3Nonces[thr_id], d_hash[thr_id]);
+		quark_groestl512_cpu_hash_64(thr_id, nrm1, pdata[19], d_branch1Nonces[thr_id], d_hash[thr_id]);
+
+		quark_groestl512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id]);
 
 		// das ist der unbedingte Branch für JH512
-		quark_jh512_cpu_hash_64(thr_id, nrm3, pdata[19], d_branch3Nonces[thr_id], d_hash[thr_id]);
+		quark_jh512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id]);
 
 		// quarkNonces in branch1 und branch2 aufsplitten gemäss if (hash[0] & 0x8)
-		quark_compactTest_cpu_hash_64(thr_id, nrm3, pdata[19], d_hash[thr_id], d_branch3Nonces[thr_id],
+		quark_compactTest_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id], NULL,
 			d_branch1Nonces[thr_id], &nrm1,
 			d_branch2Nonces[thr_id], &nrm2);
 
@@ -218,19 +214,19 @@ extern int scanhash_quark(int thr_id, uint32_t *pdata,
 		// das ist der bedingte Branch für Bmw512
 		quark_bmw512_cpu_hash_64(thr_id, nrm2, pdata[19], d_branch2Nonces[thr_id], d_hash[thr_id]);
 
-		quark_keccakskein512_cpu_hash_64(thr_id, nrm3, pdata[19], d_branch3Nonces[thr_id], d_hash[thr_id]);
+		quark_keccakskein512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id]);
 
 
 		// quarkNonces in branch1 und branch2 aufsplitten gemäss if (hash[0] & 0x8)
-		quark_compactTest_cpu_hash_64(thr_id, nrm3, pdata[19], d_hash[thr_id], d_branch3Nonces[thr_id],
+		quark_compactTest_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id], NULL,
 			d_branch1Nonces[thr_id], &nrm1,
-			d_branch3Nonces[thr_id], &nrm2);
+			d_branch2Nonces[thr_id], &nrm2);
 
 		quark_keccak512_cpu_hash_64_final(thr_id, nrm1, pdata[19], d_branch1Nonces[thr_id], d_hash[thr_id]);
-		quark_jh512_cpu_hash_64_final(thr_id, nrm2, pdata[19], d_branch3Nonces[thr_id], d_hash[thr_id]);
+		quark_jh512_cpu_hash_64_final(thr_id, nrm2, pdata[19], d_branch2Nonces[thr_id], d_hash[thr_id]);
 		CUDA_SAFE_CALL(cudaGetLastError());
 
-		cuda_check_quarkcoin(thr_id, nrm3, pdata[19], d_branch3Nonces[thr_id], d_hash[thr_id], foundnonces);
+		cuda_check_quarkcoin(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], foundnonces);
 		if(stop_mining) {mining_has_stopped[thr_id] = true; cudaStreamDestroy(gpustream[thr_id]); pthread_exit(nullptr);}
 
 		if (foundnonces[0] != 0xffffffff)
