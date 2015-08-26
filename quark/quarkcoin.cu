@@ -138,6 +138,11 @@ extern int scanhash_quark(int thr_id, uint32_t *pdata,
     uint32_t *ptarget, uint32_t max_nonce,
     uint32_t *hashes_done)
 {
+	static uint32_t *cudabranch1 = nullptr;
+	static uint32_t *cudabranch2 = nullptr;
+	static uint32_t *branchnonces1 = nullptr;
+	static uint32_t *branchnonces2 = nullptr;
+
 	const uint32_t first_nonce = pdata[19];
 
 	uint32_t intensity = 1 << 22;
@@ -164,6 +169,7 @@ extern int scanhash_quark(int thr_id, uint32_t *pdata,
 		CUDA_SAFE_CALL(cudaMallocHost(&foundnonces, 2 * 4));
 		CUDA_SAFE_CALL(cudaMalloc(&d_branch1Nonces[thr_id], sizeof(uint32_t)*throughput));
 		CUDA_SAFE_CALL(cudaMalloc(&d_branch2Nonces[thr_id], sizeof(uint32_t)*throughput));
+
 		quark_blake512_cpu_init(thr_id);
 		quark_groestl512_cpu_init(thr_id, throughput);
 		quark_bmw512_cpu_init(thr_id, throughput);
@@ -171,6 +177,11 @@ extern int scanhash_quark(int thr_id, uint32_t *pdata,
 		quark_compactTest_cpu_init(thr_id, throughput);
 //		quark_keccak512_cpu_init(thr_id);
 		quark_jh512_cpu_init(thr_id, throughput);
+
+		cudaMallocHost(&cudabranch1, 16 * sizeof(uint32_t) * throughput);
+//		cudaMallocHost(&cudabranch2, 16 * sizeof(uint32_t) * throughput);
+		cudaMallocHost(&branchnonces1, sizeof(uint32_t) * throughput);
+		cudaMallocHost(&branchnonces2, sizeof(uint32_t) * throughput);
 		CUDA_SAFE_CALL(cudaGetLastError());
 		init[thr_id] = true;
 	}
@@ -192,6 +203,10 @@ extern int scanhash_quark(int thr_id, uint32_t *pdata,
 		quark_compactTest_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id], NULL,
 									  d_branch1Nonces[thr_id], &nrm1,
 									  d_branch2Nonces[thr_id], &nrm2);
+
+		CUDA_SAFE_CALL(cudaMemcpy(cudabranch1, d_hash[thr_id], throughput*sizeof(uint32_t) * 16, cudaMemcpyDeviceToHost));
+		CUDA_SAFE_CALL(cudaMemcpy(branchnonces1, d_branch1Nonces[thr_id], sizeof(uint32_t)*nrm1, cudaMemcpyDeviceToHost));
+		CUDA_SAFE_CALL(cudaMemcpy(branchnonces2, d_branch2Nonces[thr_id], sizeof(uint32_t)*nrm2, cudaMemcpyDeviceToHost));
 
 		// nur den Skein Branch weiterverfolgen
 		quark_skein512_cpu_hash_64(thr_id, nrm2, pdata[19], d_branch2Nonces[thr_id], d_hash[thr_id]);
@@ -240,7 +255,25 @@ extern int scanhash_quark(int thr_id, uint32_t *pdata,
 			{
 				int res = 1;
 				*hashes_done = pdata[19] - first_nonce + throughput;
-				if(opt_benchmark)  applog(LOG_INFO, "GPU #%d: Found nonce $%08X", device_map[thr_id], foundnonces[0]);
+//				if(opt_benchmark)
+				{
+					applog(LOG_INFO, "GPU #%d: Found nonce $%08X", device_map[thr_id], foundnonces[0]);
+					uint32_t i, j;
+					for(i = 0; i<nrm1; i++)
+					{
+						if(branchnonces1[i] == foundnonces[0])
+							applog(LOG_DEBUG, "Branch 1");
+					}
+					for(j = 0; j<nrm2; j++)
+					{
+						if(branchnonces2[j] == foundnonces[0])
+							applog(LOG_DEBUG, "Branch 2");
+					}
+					if((cudabranch1[(foundnonces[0] - pdata[19]) * 16] & 8) == 8)
+						applog(LOG_DEBUG, "should be branch 1");
+					else
+						applog(LOG_DEBUG, "should be branch 2");
+				}
 				// check if there was some other ones...
 				if (foundnonces[1] != 0xffffffff)
 				{
@@ -251,12 +284,46 @@ extern int scanhash_quark(int thr_id, uint32_t *pdata,
 					{
 						pdata[21] = foundnonces[1];
 						res++;
-						if(opt_benchmark)  applog(LOG_INFO, "GPU #%d: Found second nonce $%08X", device_map[thr_id], foundnonces[1]);
+						{
+							applog(LOG_INFO, "GPU #%d: Found second nonce $%08X", device_map[thr_id], foundnonces[1]);
+							uint32_t i, j;
+							for(i = 0; i<nrm1; i++)
+							{
+								if(branchnonces1[i] == foundnonces[1])
+									applog(LOG_DEBUG, "Branch 1");
+							}
+							for(j = 0; j<nrm2; j++)
+							{
+								if(branchnonces2[j] == foundnonces[1])
+									applog(LOG_DEBUG, "Branch 2");
+							}
+							if((cudabranch1[(foundnonces[0] - pdata[19]) * 16] & 8) == 8)
+								applog(LOG_DEBUG, "should be branch 1");
+							else
+								applog(LOG_DEBUG, "should be branch 2");
+						}
 					}
 					else
 					{
-						if (vhash64[7] != Htarg) // don't show message if it is equal but fails fulltest
+						if(vhash64[7] != Htarg) // don't show message if it is equal but fails fulltest
+						{
 							applog(LOG_INFO, "GPU #%d: result for nonce $%08X does not validate on CPU!", device_map[thr_id], foundnonces[1]);
+							uint32_t i, j;
+							for(i = 0; i<nrm1; i++)
+							{
+								if(branchnonces1[i] == foundnonces[1])
+									applog(LOG_DEBUG, "Branch 1");
+							}
+							for(j = 0; j<nrm2; j++)
+							{
+								if(branchnonces2[j] == foundnonces[1])
+									applog(LOG_DEBUG, "Branch 2");
+							}
+							if((cudabranch1[(foundnonces[0] - pdata[19]) * 16] & 8) == 8)
+								applog(LOG_DEBUG, "should be branch 1");
+							else
+								applog(LOG_DEBUG, "should be branch 2");
+						}
 					}
 				}
 				pdata[19] = foundnonces[0];
@@ -265,8 +332,25 @@ extern int scanhash_quark(int thr_id, uint32_t *pdata,
 			}
 			else
 			{
-				if (vhash64[7] != Htarg) // don't show message if it is equal but fails fulltest
+				if(vhash64[7] != Htarg) // don't show message if it is equal but fails fulltest
+				{
 					applog(LOG_INFO, "GPU #%d: result for nonce $%08X does not validate on CPU!", device_map[thr_id], foundnonces[0]);
+					uint32_t i, j;
+					for(i = 0; i<nrm1; i++)
+					{
+						if(branchnonces1[i] == foundnonces[0])
+							applog(LOG_DEBUG, "Branch 1");
+					}
+					for(j = 0; j<nrm2; j++)
+					{
+						if(branchnonces2[j] == foundnonces[0])
+							applog(LOG_DEBUG, "Branch 2");
+					}
+					if((cudabranch1[(foundnonces[0] - pdata[19]) * 16] & 8) == 8)
+						applog(LOG_DEBUG, "should be branch 1");
+					else
+						applog(LOG_DEBUG, "should be branch 2");
+				}
 			}
 		}
 		pdata[19] += throughput; CUDA_SAFE_CALL(cudaGetLastError());
