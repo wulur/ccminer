@@ -209,11 +209,11 @@ int scanhash_sia(int thr_id, uint32_t *pdata, uint32_t *ptarget, uint32_t max_no
 {
 	static THREAD uint64_t *h_nounce = nullptr;
 
-extern void applog_hex(void *data, int len);
+	extern void applog_hex(void *data, int len);
 	applog_hex(pdata, 32);
-	applog_hex(pdata+32, 8);
-	applog_hex(pdata+40, 8);
-	applog_hex(pdata+48, 32);
+	applog_hex(pdata+8, 8);
+	applog_hex(pdata+10, 8);
+	applog_hex(pdata+12, 32);
 
 	const uint32_t first_nonce = pdata[8];
 	static THREAD uint32_t throughputmax;
@@ -247,7 +247,7 @@ extern void applog_hex(void *data, int len);
 	do
 	{
 		uint64_t headerHash[4] = {0};
-		sia_gpu_hash(gpustream[thr_id], thr_id, throughput, headerHash, h_nounce, ((uint64_t*)ptarget)[3], pdata[8]);
+		sia_gpu_hash(gpustream[thr_id], thr_id, throughput, headerHash, h_nounce, ((uint64_t*)ptarget)[3], ((uint64_t*)pdata)[4]);
 		if(stop_mining)
 		{
 			cudaDeviceSynchronize();

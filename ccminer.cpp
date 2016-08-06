@@ -1241,7 +1241,7 @@ err_out:
 static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 {
 	extern void siahash(const void *data, unsigned int len, void *hash);
-	uchar merkle_root[65];
+	uchar merkle_root[1024];
 	int i;
 
 	if(!sctx->job.job_id)
@@ -1279,13 +1279,13 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		{
 			merkle_root[0] = (uchar)0;
 			memcpy(merkle_root+1, sctx->job.coinbase, sctx->job.coinbase_size);
-			siahash(sctx->job.coinbase, (unsigned int)sctx->job.coinbase_size, merkle_root + 33);
+			siahash(merkle_root, (unsigned int)sctx->job.coinbase_size + 1, merkle_root + 33);
 			break;
 		}
 		default:
 			sha256d(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
 	}
-	if(opt_algo != ALGO_SIA)
+	if(opt_algo == ALGO_SIA)
 		merkle_root[0] = (uchar)1;
 
 	for(i = 0; i < sctx->job.merkle_count; i++)
@@ -1301,7 +1301,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		else
 		{
 			memcpy(merkle_root + 1, sctx->job.merkle[i], 32);
-			siahash(merkle_root, 64, merkle_root+33);
+			siahash(merkle_root, 65, merkle_root+33);
 		}
 	}
 
@@ -1345,7 +1345,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		work->data[10] = le32dec(sctx->job.ntime);
 		work->data[11] = 0; 
 		for(i = 0; i < 8; i++)
-			work->data[12 + i] = be32dec((uint32_t *)merkle_root + i);
+			work->data[12 + i] = le32dec((uint32_t *)(merkle_root+33) + i);
 	}
 
 	// HeavyCoin (vote / reward)
@@ -1518,8 +1518,9 @@ static void *miner_thread(void *userdata)
 					sleep(3);
 					pthread_mutex_lock(&g_work_lock);
 				}
-				pthread_mutex_unlock(&g_work_lock);
+				g_work_time = time(NULL);
 			}
+			pthread_mutex_unlock(&g_work_lock);
 		}
 		else
 		{
@@ -1554,7 +1555,7 @@ static void *miner_thread(void *userdata)
 			work.difficulty = g_work.difficulty;
 			work.height = g_work.height;
 		}
-		if(memcmp(work.data, g_work.data, wcmplen))
+		if(memcmp(work.data+12, g_work.data+12, 32))
 		{
 			if(opt_debug)
 				applog(LOG_DEBUG, "thread %d: new work", thr_id);
