@@ -85,6 +85,12 @@
     <Filter Include="Header Files\CUDA\sia">
       <UniqueIdentifier>{85b17b96-98a4-4fc5-baa8-c1a6b10f2d99}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\CUDA\Bitcoin">
+      <UniqueIdentifier>{b507a31f-1d0b-4ebc-b914-e6f8ed0f7cf3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\CUDA\Pascal">
+      <UniqueIdentifier>{95980117-2a8d-4d39-9c4d-422158ead76a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="compat\jansson\dump.c">
@@ -583,12 +589,6 @@
     <CudaCompile Include="quark\cuda_jh512keccak512.cu">
       <Filter>Source Files\CUDA\quark</Filter>
     </CudaCompile>
-    <CudaCompile Include="cuda_bitcoin.cu">
-      <Filter>Source Files\CUDA</Filter>
-    </CudaCompile>
-    <CudaCompile Include="bitcoin.cu">
-      <Filter>Source Files\CUDA</Filter>
-    </CudaCompile>
     <CudaCompile Include="skein.cu">
       <Filter>Source Files\CUDA</Filter>
     </CudaCompile>
@@ -633,6 +633,15 @@
     </CudaCompile>
     <CudaCompile Include="Sia\sia.cu">
       <Filter>Source Files\CUDA\Sia</Filter>
+    </CudaCompile>
+    <CudaCompile Include="bitcoin.cu">
+      <Filter>Source Files\CUDA\Bitcoin</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda_bitcoin.cu">
+      <Filter>Source Files\CUDA\Bitcoin</Filter>
+    </CudaCompile>
+    <CudaCompile Include="pascal\pascal.cu">
+      <Filter>Source Files\CUDA\Pascal</Filter>
     </CudaCompile>
   </ItemGroup>
 </Project>

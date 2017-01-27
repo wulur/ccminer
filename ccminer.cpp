@@ -101,6 +101,7 @@ static const char *algo_names[] = {
 	"mjollnir",
 	"myr-gr",
 	"nist5",
+	"pascal",
 	"penta",
 	"quark",
 	"qubit",
@@ -229,6 +230,7 @@ Options:\n\
 			myr-gr      Myriad-Groestl\n\
 			neoscrypt   neoscrypt (FeatherCoin)\n\
 			nist5       NIST5 (TalkCoin)\n\
+            pascal      Pascalcoin\n\
 			penta       Pentablake hash (5x Blake 512)\n\
 			quark       Quark\n\
 			qubit       Qubit\n\
@@ -1223,56 +1225,71 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 	// also store the block number
 	work->height = sctx->job.height;
 
-	/* Generate merkle root */
-	switch(opt_algo)
+	if(opt_algo != ALGO_PASCAL)
 	{
-		case ALGO_HEAVY:
-		case ALGO_MJOLLNIR:
-			heavycoin_hash(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
-			break;
-		case ALGO_FUGUE256:
-		case ALGO_GROESTL:
-		case ALGO_KECCAK:
-		case ALGO_BLAKECOIN:
-		case ALGO_WHC:
-			SHA256((uchar*)sctx->job.coinbase, sctx->job.coinbase_size, (uchar*)merkle_root);
-			break;
-		case ALGO_SIA:
+		/* Generate merkle root */
+		switch(opt_algo)
 		{
-			merkle_root[0] = (uchar)0;
-			memcpy(merkle_root + 1, sctx->job.coinbase, sctx->job.coinbase_size);
-			siahash(merkle_root, (unsigned int)sctx->job.coinbase_size + 1, merkle_root + 33);
-			break;
+			case ALGO_HEAVY:
+			case ALGO_MJOLLNIR:
+				heavycoin_hash(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
+				break;
+			case ALGO_FUGUE256:
+			case ALGO_GROESTL:
+			case ALGO_KECCAK:
+			case ALGO_BLAKECOIN:
+			case ALGO_WHC:
+				SHA256((uchar*)sctx->job.coinbase, sctx->job.coinbase_size, (uchar*)merkle_root);
+				break;
+			case ALGO_SIA:
+			{
+				merkle_root[0] = (uchar)0;
+				memcpy(merkle_root + 1, sctx->job.coinbase, sctx->job.coinbase_size);
+				siahash(merkle_root, (unsigned int)sctx->job.coinbase_size + 1, merkle_root + 33);
+				break;
+			}
+			default:
+				sha256d(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
 		}
-		default:
-			sha256d(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
-	}
-	if(opt_algo == ALGO_SIA)
-		merkle_root[0] = (uchar)1;
+		if(opt_algo == ALGO_SIA)
+			merkle_root[0] = (uchar)1;
 
-	for(i = 0; i < sctx->job.merkle_count; i++)
-	{
-		if(opt_algo != ALGO_SIA)
+		for(i = 0; i < sctx->job.merkle_count; i++)
 		{
-			memcpy(merkle_root + 32, sctx->job.merkle[i], 32);
-			if(opt_algo == ALGO_HEAVY || opt_algo == ALGO_MJOLLNIR)
-				heavycoin_hash(merkle_root, merkle_root, 64);
+			if(opt_algo != ALGO_SIA)
+			{
+				memcpy(merkle_root + 32, sctx->job.merkle[i], 32);
+				if(opt_algo == ALGO_HEAVY || opt_algo == ALGO_MJOLLNIR)
+					heavycoin_hash(merkle_root, merkle_root, 64);
+				else
+					sha256d(merkle_root, merkle_root, 64);
+			}
 			else
-				sha256d(merkle_root, merkle_root, 64);
-		}
-		else
-		{
-			memcpy(merkle_root + 1, sctx->job.merkle[i], 32);
-			siahash(merkle_root, 65, merkle_root + 33);
+			{
+				memcpy(merkle_root + 1, sctx->job.merkle[i], 32);
+				siahash(merkle_root, 65, merkle_root + 33);
+			}
 		}
 	}
-
 	/* Increment extranonce2 */
 	if(opt_extranonce)
 	{
-		for(i = 0; i < (int)sctx->xnonce2_size && !++sctx->job.xnonce2[i]; i++);
+		if(opt_algo != ALGO_PASCAL)
 		{
-			sctx->job.xnonce2[i]++;
+			for(i = 0; i < (int)sctx->xnonce2_size && !++sctx->job.xnonce2[i]; i++);
+			{
+				sctx->job.xnonce2[i]++;
+			}
+		}
+		else
+		{
+			if(sctx->job.xnonce2[0] = 126)
+			{
+				sctx->job.xnonce2[0] = ' ';
+				sctx->job.xnonce2[1]++;
+			}
+			else
+				sctx->job.xnonce2[0]++;
 		}
 	}
 	static uint32_t highnonce = 0;
@@ -1281,7 +1298,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 
 	/* Assemble block header */
 	memset(work->data, 0, sizeof(work->data));
-	if(opt_algo != ALGO_SIA)
+	if(opt_algo != ALGO_SIA && opt_algo != ALGO_PASCAL)
 	{
 		work->data[0] = le32dec(sctx->job.version);
 		for(i = 0; i < 8; i++)
@@ -1300,7 +1317,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		work->data[20] = 0x80000000;
 		work->data[31] = (opt_algo == ALGO_MJOLLNIR) ? 0x000002A0 : 0x00000280;
 	}
-	else
+	if(opt_algo == ALGO_SIA)
 	{
 		for(i = 0; i < 8; i++)
 			work->data[i] = le32dec((uint32_t *)sctx->job.prevhash + i);
@@ -1310,6 +1327,14 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		work->data[11] = 0;
 		for(i = 0; i < 8; i++)
 			work->data[12 + i] = le32dec((uint32_t *)(merkle_root + 33) + i);
+	}
+	if(opt_algo == ALGO_PASCAL)
+	{
+		unsigned char *header = (unsigned char *)(work->data);
+		for(i = 0; i < sctx->job.coinbase_size; i++)
+			header[i] = *(sctx->job.coinbase + i);
+		for(i = 0; i < 4; i++)
+			header[(sctx->job.coinbase_size) + i] = sctx->job.ntime[i];
 	}
 
 	// HeavyCoin (vote / reward)

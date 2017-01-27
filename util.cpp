@@ -1357,28 +1357,42 @@ static bool stratum_notify(struct stratum_ctx *sctx, json_t *params)
 	int32_t ntime;
 
 	job_id = json_string_value(json_array_get(params, 0));
-	prevhash = json_string_value(json_array_get(params, 1));
-	coinb1 = json_string_value(json_array_get(params, 2));
-	coinb2 = json_string_value(json_array_get(params, 3));
-	merkle_arr = json_array_get(params, 4);
-	if(!merkle_arr || !json_is_array(merkle_arr))
-		goto out;
-	merkle_count = (int)json_array_size(merkle_arr);
-	if(opt_algo != ALGO_SIA)
-		version = json_string_value(json_array_get(params, 5));
-	else
-		version = "00000001"; //unused
-	nbits = json_string_value(json_array_get(params, 6));
+	coinb1 = json_string_value(json_array_get(params, 2)); // part1 for pascal
+	coinb2 = json_string_value(json_array_get(params, 3)); // part3 for pascal
 	stime = (char *)json_string_value(json_array_get(params, 7));
 	clean = json_is_true(json_array_get(params, 8));
-	nreward = json_string_value(json_array_get(params, 9));
 
-	if(!job_id || !prevhash || !coinb1 || !coinb2 || !version || !nbits || !stime ||
-		 strlen(prevhash) != 64 || strlen(version) != 8 || strlen(nbits) != 8)
+	if(opt_algo != ALGO_PASCAL)
 	{
-		applog(LOG_ERR, "Stratum notify: invalid parameters");
-		goto out;
+		prevhash = json_string_value(json_array_get(params, 1));
+		merkle_arr = json_array_get(params, 4);
+		if(!merkle_arr || !json_is_array(merkle_arr))
+			goto out;
+		merkle_count = (int)json_array_size(merkle_arr);
+		if(opt_algo != ALGO_SIA)
+			version = json_string_value(json_array_get(params, 5));
+		else
+			version = "00000001"; //unused
+		nbits = json_string_value(json_array_get(params, 6));
+		nreward = json_string_value(json_array_get(params, 9));
 	}
+
+	if(opt_algo == ALGO_PASCAL)
+	{
+		if(!job_id || !coinb1 || !coinb2 || !stime)
+		{
+			applog(LOG_ERR, "Stratum notify: invalid parameters");
+			goto out;
+		}
+	}
+	else
+		if(!job_id || !prevhash || !coinb1 || !coinb2 || !version || !nbits || !stime ||
+		   strlen(prevhash) != 64 || strlen(version) != 8 || strlen(nbits) != 8)
+		{
+			applog(LOG_ERR, "Stratum notify: invalid parameters");
+			goto out;
+		}
+
 	if(opt_algo == ALGO_SIA)
 	{
 		if(strlen(stime) != 16)
@@ -1412,24 +1426,36 @@ static bool stratum_notify(struct stratum_ctx *sctx, json_t *params)
 			applog(LOG_DEBUG, "stratum time is at least %ds in the future", ntime);
 	}
 
-	if (merkle_count)
-		merkle = (uchar**) malloc(merkle_count * sizeof(char *));
-	for(i = 0; i < merkle_count; i++)
+	if(opt_algo != ALGO_PASCAL)
 	{
-		const char *s = json_string_value(json_array_get(merkle_arr, i));
-		if(!s || strlen(s) != 64)
+		if(merkle_count)
+			merkle = (uchar**)malloc(merkle_count * sizeof(char *));
+		for(i = 0; i < merkle_count; i++)
 		{
-			while(i--)
-				free(merkle[i]);
-			free(merkle);
-			applog(LOG_ERR, "Stratum notify: invalid Merkle branch");
-			pthread_mutex_unlock(&sctx->work_lock);
-			goto out;
+			const char *s = json_string_value(json_array_get(merkle_arr, i));
+			if(!s || strlen(s) != 64)
+			{
+				while(i--)
+					free(merkle[i]);
+				free(merkle);
+				applog(LOG_ERR, "Stratum notify: invalid Merkle branch");
+				pthread_mutex_unlock(&sctx->work_lock);
+				goto out;
+			}
+			merkle[i] = (uchar*)malloc(32);
+			hex2bin(merkle[i], s, 32);
 		}
-		merkle[i] = (uchar*)malloc(32);
-		hex2bin(merkle[i], s, 32);
-	}
 
+		for(i = 0; i < sctx->job.merkle_count; i++)
+			free(sctx->job.merkle[i]);
+		free(sctx->job.merkle);
+		sctx->job.merkle = merkle;
+		sctx->job.merkle_count = merkle_count;
+
+		hex2bin(sctx->job.version, version, 4);
+		hex2bin(sctx->job.nbits, nbits, 4);
+		hex2bin(sctx->job.prevhash, prevhash, 32);
+	}
 	coinb1_size = strlen(coinb1) / 2;
 	coinb2_size = strlen(coinb2) / 2;
 	sctx->job.coinbase_size = coinb1_size + sctx->xnonce1_size +
@@ -1441,27 +1467,27 @@ static bool stratum_notify(struct stratum_ctx *sctx, json_t *params)
 	memcpy(sctx->job.coinbase + coinb1_size, sctx->xnonce1, sctx->xnonce1_size);
 
 	if(!sctx->job.job_id || strcmp(sctx->job.job_id, job_id))
-		memset(sctx->job.xnonce2, 0, sctx->xnonce2_size);
+	{
+		char fill;
+		if(opt_algo != ALGO_PASCAL)
+			fill = '\0';
+		else
+			fill = ' ';
+
+		memset(sctx->job.xnonce2, fill, sctx->xnonce2_size);
+	}
 	hex2bin(sctx->job.xnonce2 + sctx->xnonce2_size, coinb2, coinb2_size);
-
-	free(sctx->job.job_id);
-	sctx->job.job_id = strdup(job_id);
-	hex2bin(sctx->job.prevhash, prevhash, 32);
-
 	if(opt_algo != ALGO_SIA)
 		sctx->job.height = getblocheight(sctx);
 	else
 		sctx->job.height = 1;
 
-	for(i = 0; i < sctx->job.merkle_count; i++)
-		free(sctx->job.merkle[i]);
-	free(sctx->job.merkle);
-	sctx->job.merkle = merkle;
-	sctx->job.merkle_count = merkle_count;
 
-	hex2bin(sctx->job.version, version, 4);
-	hex2bin(sctx->job.nbits, nbits, 4);
+	free(sctx->job.job_id);
+	sctx->job.job_id = strdup(job_id);
+
 	hex2bin(sctx->job.ntime, stime, 4);
+
 	if(nreward != NULL)
 	{
 		if(strlen(nreward) == 4)
