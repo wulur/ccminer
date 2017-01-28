@@ -8,9 +8,9 @@
 #endif
 #include "miner.h"
 #include "cuda_helper.h"
-/*
+
 void pascal_cpu_init(int thr_id);
-void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t startNounce, const uint32_t *const ms, uint32_t merkle, uint32_t time, uint32_t compacttarget, uint32_t *const h_nounce);
+void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t datasize, uint32_t *ms, uint32_t *const h_nounce);
 void pascal_midstate(const uint32_t *data, uint32_t *midstate);
 
 
@@ -19,7 +19,7 @@ static uint32_t *d_result[MAX_GPUS];
 
 #define TPB 512
 #define NONCES_PER_THREAD 32
-
+/*
 __global__ __launch_bounds__(TPB, 2)
 void bitcoin_gpu_hash(const uint32_t threads, const uint32_t startNounce, uint32_t *const result, const uint32_t t1c, const uint32_t t2c, const uint32_t w16, const uint32_t w16rot, const uint32_t w17, const uint32_t w17rot, const uint32_t b2, const uint32_t c2, const uint32_t d2, const uint32_t f2, const uint32_t g2, const uint32_t h2, const uint32_t ms0, const uint32_t ms1, const uint32_t ms2, const uint32_t ms3, const uint32_t ms4, const uint32_t ms5, const uint32_t ms6, const uint32_t ms7, const uint32_t compacttarget)
 {
@@ -565,110 +565,21 @@ void bitcoin_gpu_hash(const uint32_t threads, const uint32_t startNounce, uint32
 		} // nonce loop
 	} // if thread<threads
 }
+*/
 
 __host__
-void bitcoin_midstate(const uint32_t *data, uint32_t *midstate)
+void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t datasize, uint32_t *ms, uint32_t *const h_nounce)
 {
-	int i;
-	uint32_t s0, s1, t1, t2, maj, ch, a, b, c, d, e, f, g, h;
-	uint32_t w[64];
-
-	const uint32_t k[64] = {
-		0x428a2f98U, 0x71374491U, 0xb5c0fbcfU, 0xe9b5dba5U, 0x3956c25bU, 0x59f111f1U, 0x923f82a4U, 0xab1c5ed5U,
-		0xd807aa98U, 0x12835b01U, 0x243185beU, 0x550c7dc3U, 0x72be5d74U, 0x80deb1feU, 0x9bdc06a7U, 0xc19bf174U,
-		0xe49b69c1U, 0xefbe4786U, 0x0fc19dc6U, 0x240ca1ccU, 0x2de92c6fU, 0x4a7484aaU, 0x5cb0a9dcU, 0x76f988daU,
-		0x983e5152U, 0xa831c66dU, 0xb00327c8U, 0xbf597fc7U, 0xc6e00bf3U, 0xd5a79147U, 0x06ca6351U, 0x14292967U,
-		0x27b70a85U, 0x2e1b2138U, 0x4d2c6dfcU, 0x53380d13U, 0x650a7354U, 0x766a0abbU, 0x81c2c92eU, 0x92722c85U,
-		0xa2bfe8a1U, 0xa81a664bU, 0xc24b8b70U, 0xc76c51a3U, 0xd192e819U, 0xd6990624U, 0xf40e3585U, 0x106aa070U,
-		0x19a4c116U, 0x1e376c08U, 0x2748774cU, 0x34b0bcb5U, 0x391c0cb3U, 0x4ed8aa4aU, 0x5b9cca4fU, 0x682e6ff3U,
-		0x748f82eeU, 0x78a5636fU, 0x84c87814U, 0x8cc70208U, 0x90befffaU, 0xa4506cebU, 0xbef9a3f7U, 0xc67178f2U
-	};
-	const uint32_t hc[8] = {
-		0x6a09e667U, 0xbb67ae85U, 0x3c6ef372U, 0xa54ff53aU,
-		0x510e527fU, 0x9b05688cU, 0x1f83d9abU, 0x5be0cd19U
-	};
-
-	for (i = 0; i <= 15; i++)
-	{
-		w[i] = data[i];
-	}
-	for (i = 16; i <= 63; i++)
-	{
-		s0 = ROTR32(w[i - 15], 7) ^ ROTR32(w[i - 15], 18) ^ (w[i - 15] >> 3);
-		s1 = ROTR32(w[i - 2], 17) ^ ROTR32(w[i - 2], 19) ^ (w[i - 2] >> 10);
-		w[i] = w[i - 16] + s0 + w[i - 7] + s1;
-	}
-	a = hc[0];
-	b = hc[1];
-	c = hc[2];
-	d = hc[3];
-	e = hc[4];
-	f = hc[5];
-	g = hc[6];
-	h = hc[7];
-	for (i = 0; i <= 63; i++)
-	{
-		s0 = ROTR32(a, 2) ^ ROTR32(a, 13) ^ ROTR32(a, 22);
-		maj = (a & b) ^ (a & c) ^ (b & c);
-		t2 = s0 + maj;
-		s1 = ROTR32(e, 6) ^ ROTR32(e, 11) ^ ROTR32(e, 25);
-		ch = (e & f) ^ ((~e) & g);
-		t1 = h + s1 + ch + k[i] + w[i];
-		h = g;
-		g = f;
-		f = e;
-		e = d + t1;
-		d = c;
-		c = b;
-		b = a;
-		a = t1 + t2;
-	}
-	midstate[0] = a + hc[0];
-	midstate[1] = b + hc[1];
-	midstate[2] = c + hc[2];
-	midstate[3] = d + hc[3];
-	midstate[4] = e + hc[4];
-	midstate[5] = f + hc[5];
-	midstate[6] = g + hc[6];
-	midstate[7] = h + hc[7];
-}
-
-__host__
-void bitcoin_cpu_hash(int thr_id, uint32_t threads, uint32_t startNounce, const uint32_t *const ms, uint32_t merkle, uint32_t time, uint32_t compacttarget, uint32_t *const h_nounce)
-{
-	uint32_t b2, c2, d2, f2, g2, h2, t1, w16, w17, t1c, t2c, w16rot, w17rot;
-
-	cudaMemsetAsync(d_result[thr_id], 0xff, 2 * sizeof(uint32_t), gpustream[thr_id]);
-
-	t1 = ms[7] + (ROTR32(ms[4], 6) ^ ROTR32(ms[4], 11) ^ ROTR32(ms[4], 25)) + (ms[6] ^ (ms[4] & (ms[5] ^ ms[6]))) + 0x428a2f98U + merkle;
-	d2 = ms[3] + t1;
-	h2 = t1 + (ROTR32(ms[0], 2) ^ ROTR32(ms[0], 13) ^ ROTR32(ms[0], 22)) + ((ms[2] & ms[1]) | (ms[0] & (ms[2] | ms[1])));
-	//
-	t1 = ms[6] + (ROTR32(d2, 6) ^ ROTR32(d2, 11) ^ ROTR32(d2, 25)) + (ms[5] ^ (d2 & (ms[4] ^ ms[5]))) + 0x71374491U + time;
-	c2 = ms[2] + t1;
-	g2 = t1 + (ROTR32(h2, 2) ^ ROTR32(h2, 13) ^ ROTR32(h2, 22)) + ((ms[1] & ms[0]) | (h2 & (ms[1] | ms[0])));
-	//
-	t1 = ms[5] + (ROTR32(c2, 6) ^ ROTR32(c2, 11) ^ ROTR32(c2, 25)) + (ms[4] ^ (c2 & (d2 ^ ms[4]))) + 0xb5c0fbcfU + compacttarget;
-	b2 = ms[1] + t1;
-	f2 = t1 + (ROTR32(g2, 2) ^ ROTR32(g2, 13) ^ ROTR32(g2, 22)) + ((ms[0] & h2) | (g2 & (ms[0] | h2)));
-
-	w16 = merkle + (ROTR32(time, 7) ^ ROTR32(time, 18) ^ (time >> 3));
-	w16rot = (ROTR32(w16, 17) ^ ROTR32(w16, 19) ^ (w16 >> 10)) + compacttarget;
-	w17 = time + (ROTR32(compacttarget, 7) ^ ROTR32(compacttarget, 18) ^ (compacttarget >> 3)) + 0x01100000U;
-	w17rot = (ROTR32(w17, 17) ^ ROTR32(w17, 19) ^ (w17 >> 10)) + 0x11002000U;
-	t2c = (ROTR32(f2, 2) ^ ROTR32(f2, 13) ^ ROTR32(f2, 22)) + ((h2 & g2) | (f2 & (h2 | g2)));
-	t1c = ms[4] + (ROTR32(b2, 6) ^ ROTR32(b2, 11) ^ ROTR32(b2, 25)) + (d2 ^ (b2 & (c2 ^ d2))) + 0xe9b5dba5U;
 
 	dim3 grid((threads + TPB*NONCES_PER_THREAD - 1) / TPB / NONCES_PER_THREAD);
 	dim3 block(TPB);
-	bitcoin_gpu_hash << <grid, block, 0, gpustream[thr_id]>>> (threads, startNounce, d_result[thr_id], t1c, t2c, w16, w16rot, w17, w17rot, b2, c2, d2, f2, g2, h2, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7], compacttarget);
-	CUDA_SAFE_CALL(cudaMemcpyAsync(h_nounce, d_result[thr_id], 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost, gpustream[thr_id])); cudaStreamSynchronize(gpustream[thr_id]);
+//	bitcoin_gpu_hash << <grid, block, 0, gpustream[thr_id]>>> (threads, startNounce, d_result[thr_id], t1c, t2c, w16, w16rot, w17, w17rot, b2, c2, d2, f2, g2, h2, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7], compacttarget);
+//	CUDA_SAFE_CALL(cudaMemcpyAsync(h_nounce, d_result[thr_id], 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost, gpustream[thr_id])); cudaStreamSynchronize(gpustream[thr_id]);
 }
 
 __host__
-void bitcoin_cpu_init(int thr_id)
+void pascal_cpu_init(int thr_id)
 {
 	CUDA_SAFE_CALL(cudaMalloc(&d_result[thr_id], 4 * sizeof(uint32_t)));
 }
-*/
 

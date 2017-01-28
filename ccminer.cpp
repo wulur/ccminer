@@ -1335,6 +1335,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 			header[i] = *(sctx->job.coinbase + i);
 		for(i = 0; i < 4; i++)
 			header[(sctx->job.coinbase_size) + i] = sctx->job.ntime[i];
+		work->size = (uint32_t)(sctx->job.coinbase_size) + 8;
 	}
 
 	// HeavyCoin (vote / reward)
@@ -1545,7 +1546,10 @@ static void *miner_thread(void *userdata)
 		else
 		{
 			if(opt_algo == ALGO_PASCAL)
-				different = memcmp(work.data, g_work.data, work.size);
+			{
+				different = memcmp(work.data, g_work.data, g_work.size);
+				work.size = g_work.size;
+			}
 			else
 				different = memcmp(work.data, g_work.data, 7 * 4) || memcmp(work.data + 9, g_work.data + 9, 44);
 		}
