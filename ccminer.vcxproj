@@ -288,6 +288,7 @@
     <CudaCompile Include="cuda_bitcoin.cu">
       <FileType>CppCode</FileType>
     </CudaCompile>
+    <CudaCompile Include="pascal\cuda_pascal.cu" />
     <CudaCompile Include="pascal\pascal.cu" />
     <CudaCompile Include="Sia\sia.cu" />
     <ClCompile Include="sph\neoscrypt.c" />

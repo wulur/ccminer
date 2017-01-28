@@ -1543,7 +1543,12 @@ static void *miner_thread(void *userdata)
 		if(opt_algo != ALGO_SIA)
 			different = memcmp(work.data, g_work.data, wcmplen);
 		else
-			different = memcmp(work.data, g_work.data, 7*4) || memcmp(work.data + 9, g_work.data + 9, 44);
+		{
+			if(opt_algo == ALGO_PASCAL)
+				different = memcmp(work.data, g_work.data, work.size);
+			else
+				different = memcmp(work.data, g_work.data, 7 * 4) || memcmp(work.data + 9, g_work.data + 9, 44);
+		}
 		if(different)
 		{
 			if(opt_debug)
@@ -1602,6 +1607,7 @@ static void *miner_thread(void *userdata)
 				minmax = 470000000 * max64time;
 				break;
 			case ALGO_BITCOIN:
+			case ALGO_PASCAL:
 				minmax = 100000000 * max64time;
 				break;
 			case ALGO_QUBIT:
@@ -1670,7 +1676,12 @@ static void *miner_thread(void *userdata)
 		if(opt_algo != ALGO_SIA)
 			databackup = nonceptr[2];
 		else
-			databackup = nonceptr[12];
+		{
+			if(opt_algo == ALGO_PASCAL)
+				databackup = work.data[63];
+			else
+				databackup = nonceptr[12];
+		}
 		/* scan nonces for a proof-of-work hash */
 		switch(opt_algo)
 		{
@@ -1835,6 +1846,10 @@ static void *miner_thread(void *userdata)
 			rc = scanhash_sia(thr_id, work.data, work.target, max_nonce, &hashes_done);
 			break;
 
+		case ALGO_PASCAL:
+			rc = scanhash_pascal(thr_id, work.data, work.size, work.target, max_nonce, &hashes_done);
+			break;
+
 		default:
 			/* should never happen */
 			goto out;
@@ -1931,8 +1946,16 @@ static void *miner_thread(void *userdata)
 			}
 			else
 			{
-				found2 = nonceptr[12];
-				nonceptr[12] = databackup;
+				if(opt_algo == ALGO_PASCAL)
+				{
+					found2 = work.data[63];
+					work.data[63] = databackup;
+				}
+				else
+				{
+					found2 = nonceptr[12];
+					nonceptr[12] = databackup;
+				}
 			}
 			if(!submit_work(mythr, &work))
 				break;
@@ -1959,13 +1982,24 @@ static void *miner_thread(void *userdata)
 				}
 			}
 			else
-				if(rc > 1 && nonceptr[12])
+				if(opt_algo == ALGO_PASCAL)
 				{
-					nonceptr[0] = found2;
-					if(!submit_work(mythr, &work))
-						break;
+					if(rc > 1 && work.data[63])
+					{
+						work.data[work.size/4 - 1] = found2;
+						if(!submit_work(mythr, &work))
+							break;
+					}
 				}
-
+				else
+				{
+					if(rc > 1 && nonceptr[12])
+					{
+						nonceptr[0] = found2;
+						if(!submit_work(mythr, &work))
+							break;
+					}
+				}
 		}
 		nonceptr[0] = start_nonce + hashes_done;
 

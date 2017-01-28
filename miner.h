@@ -286,8 +286,6 @@ extern "C" {
 }
 #endif
 
-extern unsigned char *scrypt_buffer_alloc();
-
 extern int scanhash_deep(int thr_id, uint32_t *pdata,
 	uint32_t *ptarget, uint32_t max_nonce,
 	uint32_t *hashes_done);
@@ -328,7 +326,6 @@ extern int scanhash_quark(int thr_id, uint32_t *pdata,
 	uint32_t *ptarget, uint32_t max_nonce,
 	uint32_t *hashes_done);
 
-
 extern int scanhash_blake256(int thr_id, uint32_t *pdata,
 	uint32_t *ptarget, uint32_t max_nonce,
 	uint32_t *hashes_done, int8_t blakerounds);
@@ -352,7 +349,6 @@ extern int scanhash_pentablake(int thr_id, uint32_t *pdata,
 extern int scanhash_qubit(int thr_id, uint32_t *pdata,
 	uint32_t *ptarget, uint32_t max_nonce,
 	uint32_t *hashes_done);
-
 
 extern int scanhash_skeincoin(int thr_id, uint32_t *pdata,
 	uint32_t *ptarget, uint32_t max_nonce,
@@ -398,16 +394,17 @@ extern int scanhash_neoscrypt(bool stratum, int thr_id, uint32_t *pdata,
 	uint32_t *ptarget, uint32_t max_nonce,
 	uint32_t *hashes_done);
 
-extern int scanhash_yescrypt(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	uint32_t *hashes_done);
-
 extern int scanhash_bitcredit(int thr_id, uint32_t *pdata,
 							  uint32_t *ptarget, const uint32_t *midstate, uint32_t max_nonce,
 							  uint32_t *hashes_done);
 extern int scanhash_sia(int thr_id, uint32_t *pdata,
 												uint32_t *ptarget, uint32_t max_nonce,
 												uint32_t *hashes_done);
+
+extern int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
+							uint32_t *ptarget, uint32_t max_nonce,
+							uint32_t *hashes_done);
+
 /* api related */
 void *api_thread(void *userdata);
 void api_set_throughput(int thr_id, uint32_t throughput);
@@ -616,6 +613,7 @@ struct stratum_ctx {
 
 struct work {
 	uint32_t data[64];
+	uint32_t size;
 	uint32_t midstate[8];
 	uint32_t target[8];
 	uint32_t maxvote;

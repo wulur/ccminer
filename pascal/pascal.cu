@@ -1,9 +1,9 @@
 #include "miner.h"
 #include "cuda_helper.h"
 
-extern void pascal_cpu_init(int thr_id);
-extern void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t startNounce, const uint32_t *const ms, uint32_t merkle, uint32_t time, uint32_t compacttarget, uint32_t *const h_nounce);
-extern void pascal_midstate(const uint32_t *data, uint32_t *midstate);
+void pascal_cpu_init(int thr_id);
+void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t startNounce, const uint32_t *const ms, uint32_t merkle, uint32_t time, uint32_t compacttarget, uint32_t *const h_nounce);
+void pascal_midstate(const uint32_t *data, uint32_t *midstate);
 
 static uint32_t rrot(uint32_t x, unsigned int n)
 {
@@ -121,7 +121,7 @@ void pascal_hash(uint32_t *output, const uint32_t *data, uint32_t nonce, const u
 }
 
 
-int scanhash_pascal(int thr_id, uint32_t *pdata,
+int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 	uint32_t *ptarget, uint32_t max_nonce,
 	uint32_t *hashes_done)
 {/*

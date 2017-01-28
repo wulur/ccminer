@@ -643,5 +643,8 @@
     <CudaCompile Include="pascal\pascal.cu">
       <Filter>Source Files\CUDA\Pascal</Filter>
     </CudaCompile>
+    <CudaCompile Include="pascal\cuda_pascal.cu">
+      <Filter>Source Files\CUDA\Pascal</Filter>
+    </CudaCompile>
   </ItemGroup>
 </Project>
