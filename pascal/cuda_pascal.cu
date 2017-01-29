@@ -1,11 +1,6 @@
 // Original version written by Schleicher (KlausT @github)
 // Redistribution and use in source and binary forms, with or without modification, are permitted
 
-#ifdef __cplusplus
-#include <cstdint>
-#else
-#include <stdint.h>
-#endif
 #include "miner.h"
 #include "cuda_helper.h"
 
@@ -19,14 +14,14 @@ static THREAD uint32_t *d_result;
 #define NONCES_PER_THREAD 32
 
 __global__ __launch_bounds__(TPB, 2)
-void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint32_t *data, const uint32_t datasize, uint32_t ms0, const uint32_t ms1, const uint32_t ms2, const uint32_t ms3, const uint32_t ms4, const uint32_t ms5, const uint32_t ms6, const uint32_t ms7)
+void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint32_t *data, const uint32_t nonceoffset, uint32_t ms0, const uint32_t ms1, const uint32_t ms2, const uint32_t ms3, const uint32_t ms4, const uint32_t ms5, const uint32_t ms6, const uint32_t ms7)
 {
 	const uint32_t threadindex = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (threadindex < threads)
 	{
 		uint32_t s0, s1, t1, a, b, c, d, e, f, g, h;
 		uint32_t w[64];
-		const uint32_t startnonce = data[datasize / 4 - 1];
+		const uint32_t startnonce = data[nonceoffset / 4];
 		const uint32_t numberofthreads = blockDim.x*gridDim.x;
 		const uint32_t maxnonce = startnonce + threadindex + numberofthreads*NONCES_PER_THREAD - 1;
 
@@ -35,7 +30,7 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 #pragma unroll
 			for(int i = 0; i <= 15; i++)
 				w[i] = data[i];
-			w[datasize / 4 - 1] = nonce;
+			w[nonceoffset / 4] = nonce;
 #pragma unroll
 			for(int i = 16; i <= 63; i++)
 			{
@@ -579,14 +574,14 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 
 
 __host__
-void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t datasize, uint32_t *ms, uint32_t *h_result)
+void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t nonceoffset, uint32_t *ms, uint32_t *h_result)
 {
 
 	uint32_t grid = (threads + TPB*NONCES_PER_THREAD - 1) / TPB / NONCES_PER_THREAD;
 
 	CUDA_SAFE_CALL(cudaMemset(d_result, 0, 8));
 
-	pascal_gpu_hash << <grid, TPB>>> (threads, d_result, data, datasize, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7]);
+	pascal_gpu_hash << <grid, TPB>>> (threads, d_result, data, nonceoffset, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7]);
 
 	CUDA_SAFE_CALL(cudaMemcpy(h_result, d_result, 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
 }

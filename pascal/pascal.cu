@@ -2,7 +2,7 @@
 #include "cuda_helper.h"
 
 void pascal_cpu_init(int thr_id);
-void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t datasize, uint32_t *ms, uint32_t *const result);
+void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t nonceoffset, uint32_t *ms, uint32_t *const result);
 void pascal_midstate(const uint32_t *data, uint32_t *midstate);
 
 #define rrot(x, n)	ROTR32(x, n)
@@ -133,7 +133,7 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 
 	do
 	{
-		pascal_cpu_hash(thr_id, throughput, pdata + (datasize / 64 * 16), datasize % 64, ms, result);
+		pascal_cpu_hash(thr_id, throughput, pdata + (datasize / 64 * 16), (datasize % 64) - 4, ms, result);
 
 		if(stop_mining)
 		{
