@@ -1263,7 +1263,7 @@ bool stratum_authorize(struct stratum_ctx *sctx, const char *user, const char *p
 	}
 	sctx->tm_connected = time(NULL);
 	ret = true;
-	if(extranonce)
+	if(extranonce  && opt_algo != ALGO_PASCAL)
 	{
 		// subscribe to extranonce (optional)
 		sprintf(s, "{\"id\": 3, \"method\": \"mining.extranonce.subscribe\", \"params\": []}");
