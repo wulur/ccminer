@@ -10,6 +10,7 @@ void pascal_midstate(const uint32_t *data, uint32_t *midstate);
 void pascal_hash(uint32_t *output, const uint32_t *data, uint32_t nonce, const uint32_t *midstate)
 {
 	opt_verify = false;
+	//to do: add code here
 }
 
 void pascal_midstate(const uint32_t *data, uint32_t *hc)
