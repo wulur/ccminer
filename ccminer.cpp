@@ -1136,14 +1136,23 @@ static bool get_work(struct thr_info *thr, struct work *work)
 		}
 		else
 		{
-			memset(work->data, 0, 4);
-			work->data[1] = (uint32_t)((double)rand() / (1ULL + RAND_MAX) * 0xffffffffu);
-			memset(work->data+2, 0x55, 24);
-			memset(work->data + 8, 0, 8);
-			memset(work->data + 10, 0, 4);
-			memset(work->data + 11, 0x55, 4);
-			memset(work->data + 12, 0x55, 32);
-			memset(work->target, 0x00, sizeof(work->target));
+			if(opt_algo == ALGO_PASCAL)
+			{
+				work->data[0] = (uint32_t)((double)rand() / (1ULL + RAND_MAX) * 0xffffffffu);
+				memset(work->data + 1, 20, 196);
+				work->size = 200;
+			}
+			else
+			{
+				memset(work->data, 0, 4);
+				work->data[1] = (uint32_t)((double)rand() / (1ULL + RAND_MAX) * 0xffffffffu);
+				memset(work->data + 2, 0x55, 24);
+				memset(work->data + 8, 0, 8);
+				memset(work->data + 10, 0, 4);
+				memset(work->data + 11, 0x55, 4);
+				memset(work->data + 12, 0x55, 32);
+				memset(work->target, 0x00, sizeof(work->target));
+			}
 		}
 		return true;
 	}
