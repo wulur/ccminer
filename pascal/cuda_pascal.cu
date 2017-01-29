@@ -13,7 +13,7 @@ void pascal_cpu_init(int thr_id);
 void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t datasize, uint32_t *ms, uint32_t *const h_result);
 void pascal_midstate(const uint32_t *data, uint32_t *midstate);
 
-static uint32_t *d_result[MAX_GPUS];
+static THREAD uint32_t *d_result;
 
 #define TPB 512
 #define NONCES_PER_THREAD 32
@@ -582,34 +582,18 @@ __host__
 void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t datasize, uint32_t *ms, uint32_t *h_result)
 {
 
-	dim3 grid((threads + TPB*NONCES_PER_THREAD - 1) / TPB / NONCES_PER_THREAD);
-	dim3 block(TPB);
+	uint32_t grid = (threads + TPB*NONCES_PER_THREAD - 1) / TPB / NONCES_PER_THREAD;
 
-	CUDA_SAFE_CALL(cudaMemset(d_result[thr_id], 0, 8));
+	CUDA_SAFE_CALL(cudaMemset(d_result, 0, 8));
 
-	uint8_t *data8 = (uint8_t*)data;
-	if(datasize == 8)
-	{
-		data[3] = 0x80000000;
-		for(int i = 4; i < 14; i++)
-			data[i] = 0;
-		data[15] = 64;
-	}
-	else
-	{
-		data8[datasize] = 0x80;
-		for(int i = datasize + 1; i < 56; i++)
-			data8[i] = 0;
-		data[15] = datasize * 8;
-	}
-	pascal_gpu_hash << <grid, block>>> (threads, d_result[thr_id], data, datasize, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7]);
+	pascal_gpu_hash << <grid, TPB>>> (threads, d_result, data, datasize, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7]);
 
-	CUDA_SAFE_CALL(cudaMemcpy(h_result, d_result[thr_id], 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+	CUDA_SAFE_CALL(cudaMemcpy(h_result, d_result, 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
 }
 
 __host__
 void pascal_cpu_init(int thr_id)
 {
-	CUDA_SAFE_CALL(cudaMalloc(&d_result[thr_id], 2 * sizeof(uint32_t)));
+	CUDA_SAFE_CALL(cudaMalloc(&d_result, 2 * sizeof(uint32_t)));
 }
 

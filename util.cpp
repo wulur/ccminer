@@ -1455,6 +1455,12 @@ static bool stratum_notify(struct stratum_ctx *sctx, json_t *params)
 		hex2bin(sctx->job.version, version, 4);
 		hex2bin(sctx->job.nbits, nbits, 4);
 		hex2bin(sctx->job.prevhash, prevhash, 32);
+
+		if(nreward != NULL)
+		{
+			if(strlen(nreward) == 4)
+				hex2bin(sctx->job.nreward, nreward, 2);
+		}
 	}
 	coinb1_size = strlen(coinb1) / 2;
 	coinb2_size = strlen(coinb2) / 2;
@@ -1488,11 +1494,6 @@ static bool stratum_notify(struct stratum_ctx *sctx, json_t *params)
 
 	hex2bin(sctx->job.ntime, stime, 4);
 
-	if(nreward != NULL)
-	{
-		if(strlen(nreward) == 4)
-			hex2bin(sctx->job.nreward, nreward, 2);
-	}
 	sctx->job.clean = clean;
 
 	sctx->job.diff = sctx->next_diff;

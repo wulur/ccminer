@@ -9,6 +9,7 @@ void pascal_midstate(const uint32_t *data, uint32_t *midstate);
 
 void pascal_hash(uint32_t *output, const uint32_t *data, uint32_t nonce, const uint32_t *midstate)
 {
+	opt_verify = false;
 }
 
 void pascal_midstate(const uint32_t *data, uint32_t *hc)
@@ -113,6 +114,22 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 
 	if(datasize % 64 > 53)
 		applog(LOG_ERR, "Error: data size %d is not being supported yet", datasize);
+	
+	if(datasize == 200)
+	{
+		pdata[50] = 0x80;
+		for(int i = 51; i < 63; i++)
+			pdata[i] = 0;
+		pdata[63] = 0x40060000;
+	}
+	else
+	{
+		uint8_t *data8 = (uint8_t*)pdata;
+		data8[datasize] = 0x80;
+		for(int i = 1; i < 61 - datasize%64; i++)
+			data8[datasize + i] = 0;
+		pdata[datasize/64*16 + 15] = swab32(datasize * 8);
+	}
 
 	do
 	{
