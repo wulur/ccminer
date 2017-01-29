@@ -1547,7 +1547,7 @@ static void *miner_thread(void *userdata)
 		{
 			if(opt_algo == ALGO_PASCAL)
 			{
-				different = memcmp(work.data, g_work.data, g_work.size);
+				different = memcmp(work.data, g_work.data, g_work.size-4);
 				work.size = g_work.size;
 			}
 			else

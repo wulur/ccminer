@@ -10,107 +10,118 @@
 #include "cuda_helper.h"
 
 void pascal_cpu_init(int thr_id);
-void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t datasize, uint32_t *ms, uint32_t *const h_nounce);
+void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t datasize, uint32_t *ms, uint32_t *const h_result);
 void pascal_midstate(const uint32_t *data, uint32_t *midstate);
 
-
-__constant__ uint32_t pTarget[8];
 static uint32_t *d_result[MAX_GPUS];
 
 #define TPB 512
 #define NONCES_PER_THREAD 32
-/*
+
 __global__ __launch_bounds__(TPB, 2)
-void bitcoin_gpu_hash(const uint32_t threads, const uint32_t startNounce, uint32_t *const result, const uint32_t t1c, const uint32_t t2c, const uint32_t w16, const uint32_t w16rot, const uint32_t w17, const uint32_t w17rot, const uint32_t b2, const uint32_t c2, const uint32_t d2, const uint32_t f2, const uint32_t g2, const uint32_t h2, const uint32_t ms0, const uint32_t ms1, const uint32_t ms2, const uint32_t ms3, const uint32_t ms4, const uint32_t ms5, const uint32_t ms6, const uint32_t ms7, const uint32_t compacttarget)
+void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint32_t *data, const uint32_t datasize, uint32_t ms0, const uint32_t ms1, const uint32_t ms2, const uint32_t ms3, const uint32_t ms4, const uint32_t ms5, const uint32_t ms6, const uint32_t ms7)
 {
 	const uint32_t threadindex = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (threadindex < threads)
 	{
-		uint32_t t1, a, b, c, d, e, f, g, h;
+		uint32_t s0, s1, t1, a, b, c, d, e, f, g, h;
 		uint32_t w[64];
+		const uint32_t startnonce = data[datasize / 4 - 1];
 		const uint32_t numberofthreads = blockDim.x*gridDim.x;
-		const uint32_t maxnonce = startNounce + threadindex + numberofthreads*NONCES_PER_THREAD - 1;
+		const uint32_t maxnonce = startnonce + threadindex + numberofthreads*NONCES_PER_THREAD - 1;
 
-		#pragma unroll 
-		for (uint32_t nonce = startNounce + threadindex; nonce <= maxnonce; nonce += numberofthreads)
+		for (uint32_t nonce = startnonce + threadindex; nonce <= maxnonce; nonce += numberofthreads)
 		{
-			w[18] = (ROTR32(nonce, 7) ^ ROTR32(nonce, 18) ^ (nonce >> 3)) + w16rot;
-			w[19] = nonce + w17rot;
-			w[20] = 0x80000000U + (ROTR32(w[18], 17) ^ ROTR32(w[18], 19) ^ (w[18] >> 10));
-			w[21] = (ROTR32(w[19], 17) ^ ROTR32(w[19], 19) ^ (w[19] >> 10));
-			w[22] = 0x280U + (ROTR32(w[20], 17) ^ ROTR32(w[20], 19) ^ (w[20] >> 10));
-			w[23] = w16 + (ROTR32(w[21], 17) ^ ROTR32(w[21], 19) ^ (w[21] >> 10));
-			w[24] = w17 + (ROTR32(w[22], 17) ^ ROTR32(w[22], 19) ^ (w[22] >> 10));
-			w[25] = w[18] + (ROTR32(w[23], 17) ^ ROTR32(w[23], 19) ^ (w[23] >> 10));
-			w[26] = w[19] + (ROTR32(w[24], 17) ^ ROTR32(w[24], 19) ^ (w[24] >> 10));
-			w[27] = w[20] + (ROTR32(w[25], 17) ^ ROTR32(w[25], 19) ^ (w[25] >> 10));
-			w[28] = w[21] + (ROTR32(w[26], 17) ^ ROTR32(w[26], 19) ^ (w[26] >> 10));
-			w[29] = w[22] + (ROTR32(w[27], 17) ^ ROTR32(w[27], 19) ^ (w[27] >> 10));
-			w[30] = w[23] + 0xa00055U + (ROTR32(w[28], 17) ^ ROTR32(w[28], 19) ^ (w[28] >> 10));
-			w[31] = 0x280U + w[24] + (ROTR32(w16, 7) ^ ROTR32(w16, 18) ^ (w16 >> 3)) + (ROTR32(w[29], 17) ^ ROTR32(w[29], 19) ^ (w[29] >> 10));
-			w[32] = w16 + w[25] + (ROTR32(w17, 7) ^ ROTR32(w17, 18) ^ (w17 >> 3)) + (ROTR32(w[30], 17) ^ ROTR32(w[30], 19) ^ (w[30] >> 10));
-			w[33] = w17 + w[26] + (ROTR32(w[18], 7) ^ ROTR32(w[18], 18) ^ (w[18] >> 3)) + (ROTR32(w[31], 17) ^ ROTR32(w[31], 19) ^ (w[31] >> 10));
 #pragma unroll
-			for (int i = 34; i < 62; i++)
-				w[i] = w[i-16] + w[i-7] + (ROTR32(w[i-15], 7) ^ ROTR32(w[i-15], 18) ^ (w[i-15] >> 3)) + (ROTR32(w[i-2], 17) ^ ROTR32(w[i-2], 19) ^ (w[i-2] >> 10));
+			for(int i = 0; i <= 15; i++)
+				w[i] = data[i];
+			w[datasize / 4 - 1] = nonce;
+#pragma unroll
+			for(int i = 16; i <= 63; i++)
+			{
+				s0 = ROTR32(w[i - 15], 7) ^ ROTR32(w[i - 15], 18) ^ (w[i - 15] >> 3);
+				s1 = ROTR32(w[i - 2], 17) ^ ROTR32(w[i - 2], 19) ^ (w[i - 2] >> 10);
+				w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+			}
 
-			t1 = t1c + (uint32_t)nonce;
-			a = ms0 + t1;
-			e = t1 + t2c;
+			a = ms0;
+			b = ms1;
+			c = ms2;
+			d = ms3;
+			e = ms4;
+			f = ms5;
+			g = ms6;
+			h = ms7;
+
+			t1 = h + (ROTR32(e, 6) ^ ROTR32(e, 11) ^ ROTR32(e, 25)) + (g ^ (e & (f ^ g))) + 0x428a2f98U + w[0];
+			d = d + t1;
+			h = t1 + (ROTR32(a, 2) ^ ROTR32(a, 13) ^ ROTR32(a, 22)) + ((c & b) | (a & (c | b)));
 			//
-			t1 = d2 + (ROTR32(a, 6) ^ ROTR32(a, 11) ^ ROTR32(a, 25)) + (c2 ^ (a & (b2 ^ c2))) + 0xb956c25bU;
-			h = h2 + t1;
-			d = t1 + (ROTR32(e, 2) ^ ROTR32(e, 13) ^ ROTR32(e, 22)) + ((g2 & f2) | (e & (g2 | f2)));
+			t1 = g + (ROTR32(d, 6) ^ ROTR32(d, 11) ^ ROTR32(d, 25)) + (f ^ (d & (e ^ f))) + 0x71374491U + w[1];
+			c = c + t1;
+			g = t1 + (ROTR32(h, 2) ^ ROTR32(h, 13) ^ ROTR32(h, 22)) + ((b & a) | (h & (b | a)));
 			//
-			t1 = c2 + (ROTR32(h, 6) ^ ROTR32(h, 11) ^ ROTR32(h, 25)) + (b2 ^ (h & (a ^ b2))) + 0x59f111f1U;
-			g = g2 + t1;
-			c = t1 + (ROTR32(d, 2) ^ ROTR32(d, 13) ^ ROTR32(d, 22)) + ((f2 & e) | (d & (f2 | e)));
+			t1 = f + (ROTR32(c, 6) ^ ROTR32(c, 11) ^ ROTR32(c, 25)) + (e ^ (c & (d ^ e))) + 0xb5c0fbcfU + w[2];
+			b = b + t1;
+			f = t1 + (ROTR32(g, 2) ^ ROTR32(g, 13) ^ ROTR32(g, 22)) + ((a & h) | (g & (a | h)));
 			//
-			t1 = b2 + (ROTR32(g, 6) ^ ROTR32(g, 11) ^ ROTR32(g, 25)) + (a ^ (g & (h ^ a))) + 0x923f82a4U;
-			f = f2 + t1;
+			t1 = e + (ROTR32(b, 6) ^ ROTR32(b, 11) ^ ROTR32(b, 25)) + (d ^ (b & (c ^ d))) + 0xe9b5dba5U + w[3];
+			a = a + t1;
+			e = t1 + (ROTR32(f, 2) ^ ROTR32(f, 13) ^ ROTR32(f, 22)) + ((h & g) | (f & (h | g)));
+			//
+			t1 = d + (ROTR32(a, 6) ^ ROTR32(a, 11) ^ ROTR32(a, 25)) + (c ^ (a & (b ^ c))) + 0x3956c25bU + w[4];
+			h = h + t1;
+			d = t1 + (ROTR32(e, 2) ^ ROTR32(e, 13) ^ ROTR32(e, 22)) + ((g & f) | (e & (g | f)));
+			//
+			t1 = c + (ROTR32(h, 6) ^ ROTR32(h, 11) ^ ROTR32(h, 25)) + (b ^ (h & (a ^ b))) + 0x59f111f1U + w[5];
+			g = g + t1;
+			c = t1 + (ROTR32(d, 2) ^ ROTR32(d, 13) ^ ROTR32(d, 22)) + ((f & e) | (d & (f | e)));
+			//
+			t1 = b + (ROTR32(g, 6) ^ ROTR32(g, 11) ^ ROTR32(g, 25)) + (a ^ (g & (h ^ a))) + 0x923f82a4U + w[6];
+			f = f + t1;
 			b = t1 + (ROTR32(c, 2) ^ ROTR32(c, 13) ^ ROTR32(c, 22)) + ((e & d) | (c & (e | d)));
 			//
-			t1 = a + (ROTR32(f, 6) ^ ROTR32(f, 11) ^ ROTR32(f, 25)) + (h ^ (f & (g ^ h))) + 0xab1c5ed5U;
+			t1 = a + (ROTR32(f, 6) ^ ROTR32(f, 11) ^ ROTR32(f, 25)) + (h ^ (f & (g ^ h))) + 0xab1c5ed5U + w[7];
 			e += t1;
 			a = t1 + (ROTR32(b, 2) ^ ROTR32(b, 13) ^ ROTR32(b, 22)) + ((d & c) | (b & (d | c)));
 			//
-			t1 = h + (ROTR32(e, 6) ^ ROTR32(e, 11) ^ ROTR32(e, 25)) + (g ^ (e & (f ^ g))) + 0xd807aa98U;
+			t1 = h + (ROTR32(e, 6) ^ ROTR32(e, 11) ^ ROTR32(e, 25)) + (g ^ (e & (f ^ g))) + 0xd807aa98U + w[8];
 			d += t1;
 			h = t1 + (ROTR32(a, 2) ^ ROTR32(a, 13) ^ ROTR32(a, 22)) + ((c & b) | (a & (c | b)));
 			//
-			t1 = g + (ROTR32(d, 6) ^ ROTR32(d, 11) ^ ROTR32(d, 25)) + (f ^ (d & (e ^ f))) + 0x12835b01U;
+			t1 = g + (ROTR32(d, 6) ^ ROTR32(d, 11) ^ ROTR32(d, 25)) + (f ^ (d & (e ^ f))) + 0x12835b01U + w[9];
 			c += t1;
 			g = t1 + (ROTR32(h, 2) ^ ROTR32(h, 13) ^ ROTR32(h, 22)) + ((b & a) | (h & (b | a)));
 			//
-			t1 = f + (ROTR32(c, 6) ^ ROTR32(c, 11) ^ ROTR32(c, 25)) + (e ^ (c & (d ^ e))) + 0x243185beU;
+			t1 = f + (ROTR32(c, 6) ^ ROTR32(c, 11) ^ ROTR32(c, 25)) + (e ^ (c & (d ^ e))) + 0x243185beU + w[10];
 			b += t1;
 			f = t1 + (ROTR32(g, 2) ^ ROTR32(g, 13) ^ ROTR32(g, 22)) + ((a & h) | (g & (a | h)));
 			//
-			t1 = e + (ROTR32(b, 6) ^ ROTR32(b, 11) ^ ROTR32(b, 25)) + (d ^ (b & (c ^ d))) + 0x550c7dc3U;
+			t1 = e + (ROTR32(b, 6) ^ ROTR32(b, 11) ^ ROTR32(b, 25)) + (d ^ (b & (c ^ d))) + 0x550c7dc3U + w[11];
 			a += t1;
 			e = t1 + (ROTR32(f, 2) ^ ROTR32(f, 13) ^ ROTR32(f, 22)) + ((h & g) | (f & (h | g)));
 			//
-			t1 = d + (ROTR32(a, 6) ^ ROTR32(a, 11) ^ ROTR32(a, 25)) + (c ^ (a & (b ^ c))) + 0x72be5d74U;
+			t1 = d + (ROTR32(a, 6) ^ ROTR32(a, 11) ^ ROTR32(a, 25)) + (c ^ (a & (b ^ c))) + 0x72be5d74U + w[12];
 			h += t1;
 			d = t1 + (ROTR32(e, 2) ^ ROTR32(e, 13) ^ ROTR32(e, 22)) + ((g & f) | (e & (g | f)));
 			//
-			t1 = c + (ROTR32(h, 6) ^ ROTR32(h, 11) ^ ROTR32(h, 25)) + (b ^ (h & (a ^ b))) + 0x80deb1feU;
+			t1 = c + (ROTR32(h, 6) ^ ROTR32(h, 11) ^ ROTR32(h, 25)) + (b ^ (h & (a ^ b))) + 0x80deb1feU + w[13];
 			g += t1;
 			c = t1 + (ROTR32(d, 2) ^ ROTR32(d, 13) ^ ROTR32(d, 22)) + ((f & e) | (d & (f | e)));
 			//
-			t1 = b + (ROTR32(g, 6) ^ ROTR32(g, 11) ^ ROTR32(g, 25)) + (a ^ (g & (h ^ a))) + 0x9bdc06a7U;
+			t1 = b + (ROTR32(g, 6) ^ ROTR32(g, 11) ^ ROTR32(g, 25)) + (a ^ (g & (h ^ a))) + 0x9bdc06a7U + w[14];
 			f += t1;
 			b = t1 + (ROTR32(c, 2) ^ ROTR32(c, 13) ^ ROTR32(c, 22)) + ((e & d) | (c & (e | d)));
 			//
-			t1 = a + (ROTR32(f, 6) ^ ROTR32(f, 11) ^ ROTR32(f, 25)) + (h ^ (f & (g ^ h))) + 0xc19bf3f4U;
+			t1 = a + (ROTR32(f, 6) ^ ROTR32(f, 11) ^ ROTR32(f, 25)) + (h ^ (f & (g ^ h))) + 0xc19bf3f4U + w[15];
 			e += t1;
 			a = t1 + (ROTR32(b, 2) ^ ROTR32(b, 13) ^ ROTR32(b, 22)) + ((d & c) | (b & (d | c)));
 			//
-			t1 = h + (ROTR32(e, 6) ^ ROTR32(e, 11) ^ ROTR32(e, 25)) + (g ^ (e & (f ^ g))) + 0xe49b69c1U + w16;
+			t1 = h + (ROTR32(e, 6) ^ ROTR32(e, 11) ^ ROTR32(e, 25)) + (g ^ (e & (f ^ g))) + 0xe49b69c1U + w[16];
 			d += t1;
 			h = t1 + (ROTR32(a, 2) ^ ROTR32(a, 13) ^ ROTR32(a, 22)) + ((c & b) | (a & (c | b)));
 			//
-			t1 = g + (ROTR32(d, 6) ^ ROTR32(d, 11) ^ ROTR32(d, 25)) + (f ^ (d & (e ^ f))) + 0xefbe4786U + w17;
+			t1 = g + (ROTR32(d, 6) ^ ROTR32(d, 11) ^ ROTR32(d, 25)) + (f ^ (d & (e ^ f))) + 0xefbe4786U + w[17];
 			c += t1;
 			g = t1 + (ROTR32(h, 2) ^ ROTR32(h, 13) ^ ROTR32(h, 22)) + ((b & a) | (h & (b | a)));
 			//
@@ -290,11 +301,11 @@ void bitcoin_gpu_hash(const uint32_t threads, const uint32_t startNounce, uint32
 			g += t1;
 			c = t1 + (ROTR32(d, 2) ^ ROTR32(d, 13) ^ ROTR32(d, 22)) + ((f & e) | (d & (f | e)));
 			//
-			t1 = b + (ROTR32(g, 6) ^ ROTR32(g, 11) ^ ROTR32(g, 25)) + (a ^ (g & (h ^ a))) + 0xbef9a3f7U + w[46] + w[55] + (ROTR32(w[47], 7) ^ ROTR32(w[47], 18) ^ (w[47] >> 3)) + (ROTR32(w[60], 17) ^ ROTR32(w[60], 19) ^ (w[60] >> 10));
+			t1 = b + (ROTR32(g, 6) ^ ROTR32(g, 11) ^ ROTR32(g, 25)) + (a ^ (g & (h ^ a))) + 0xbef9a3f7U + w[62];
 			f += t1;
 			b = t1 + (ROTR32(c, 2) ^ ROTR32(c, 13) ^ ROTR32(c, 22)) + ((e & d) | (c & (e | d)));
 			//
-			t1 = a + (ROTR32(f, 6) ^ ROTR32(f, 11) ^ ROTR32(f, 25)) + (h ^ (f & (g ^ h))) + 0xc67178f2U + w[47] + w[56] + (ROTR32(w[48], 7) ^ ROTR32(w[48], 18) ^ (w[48] >> 3)) + (ROTR32(w[61], 17) ^ ROTR32(w[61], 19) ^ (w[61] >> 10));
+			t1 = a + (ROTR32(f, 6) ^ ROTR32(f, 11) ^ ROTR32(f, 25)) + (h ^ (f & (g ^ h))) + 0xc67178f2U + w[63];
 			e += t1;
 			a = t1 + (ROTR32(b, 2) ^ ROTR32(b, 13) ^ ROTR32(b, 22)) + ((d & c) | (b & (d | c)));
 			//
@@ -558,28 +569,47 @@ void bitcoin_gpu_hash(const uint32_t threads, const uint32_t startNounce, uint32
 			//
 			if (h == 0xa41f32e7)
 			{
-				uint32_t tmp = atomicCAS(result, 0xffffffff, nonce);
-				if (tmp != 0xffffffff)
+				uint32_t tmp = atomicCAS(result, 0, nonce);
+				if (tmp != 0)
 					result[1] = nonce;
 			}
 		} // nonce loop
 	} // if thread<threads
 }
-*/
+
 
 __host__
-void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t datasize, uint32_t *ms, uint32_t *const h_nounce)
+void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t datasize, uint32_t *ms, uint32_t *h_result)
 {
 
 	dim3 grid((threads + TPB*NONCES_PER_THREAD - 1) / TPB / NONCES_PER_THREAD);
 	dim3 block(TPB);
-//	bitcoin_gpu_hash << <grid, block, 0, gpustream[thr_id]>>> (threads, startNounce, d_result[thr_id], t1c, t2c, w16, w16rot, w17, w17rot, b2, c2, d2, f2, g2, h2, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7], compacttarget);
-//	CUDA_SAFE_CALL(cudaMemcpyAsync(h_nounce, d_result[thr_id], 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost, gpustream[thr_id])); cudaStreamSynchronize(gpustream[thr_id]);
+
+	CUDA_SAFE_CALL(cudaMemset(d_result[thr_id], 0, 8));
+
+	uint8_t *data8 = (uint8_t*)data;
+	if(datasize == 8)
+	{
+		data[3] = 0x80000000;
+		for(int i = 4; i < 14; i++)
+			data[i] = 0;
+		data[15] = 64;
+	}
+	else
+	{
+		data8[datasize] = 0x80;
+		for(int i = datasize + 1; i < 56; i++)
+			data8[i] = 0;
+		data[15] = datasize * 8;
+	}
+	pascal_gpu_hash << <grid, block>>> (threads, d_result[thr_id], data, datasize, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7]);
+
+	CUDA_SAFE_CALL(cudaMemcpy(h_result, d_result[thr_id], 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
 }
 
 __host__
 void pascal_cpu_init(int thr_id)
 {
-	CUDA_SAFE_CALL(cudaMalloc(&d_result[thr_id], 4 * sizeof(uint32_t)));
+	CUDA_SAFE_CALL(cudaMalloc(&d_result[thr_id], 2 * sizeof(uint32_t)));
 }
 
