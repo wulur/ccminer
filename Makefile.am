@@ -40,6 +40,7 @@ ccminer_SOURCES	= elist.h miner.h compat.h \
 			  Algo256/blake256.cu Algo256/keccak256.cu \
 			  JHA/jackpotcoin.cu JHA/cuda_jha_keccak512.cu \
 			  JHA/cuda_jha_compactionTest.cu cuda_checkhash.cu \
+			  pascal/pascal.cu pascal/cuda_pascal.cu \
 			  quark/cuda_jh512.cu quark/cuda_quark_blake512.cu quark/cuda_quark_groestl512.cu quark/cuda_skein512.cu \
 			  quark/cuda_bmw512.cu quark/cuda_quark_keccak512.cu quark/cuda_jh512keccak512.cu \
 			  quark/quarkcoin.cu \
