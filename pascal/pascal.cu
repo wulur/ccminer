@@ -4,7 +4,7 @@
 void pascal_cpu_init(int thr_id);
 void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t startnonce, uint32_t nonceoffset, uint32_t *ms, uint32_t *const result);
 void pascal_midstate(const uint32_t *data, uint32_t *midstate);
-void copydata(uint32_t *data, uint32_t datasize);
+void copydata(const uint32_t *data);
 
 #define rrot(x, n)	ROTR32(x, n)
 
@@ -187,7 +187,7 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 {
 	static THREAD uint32_t *result = nullptr;
 	static THREAD volatile bool init = false;
-	
+
 	const uint32_t first_nonce = pdata[datasize / 4 - 1];
 	uint32_t throughput = device_intensity(device_map[thr_id], __func__, 1U << 28);
 	throughput = min(throughput, (max_nonce - first_nonce));
@@ -241,7 +241,7 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 			pdata[datasize / 64 * 16 + 15] = swab32(datasize * 8);
 		}
 	}
-	copydata(pdata, datasize);
+	copydata(pdata+datasize/64*16);
 	do
 	{
 		pascal_cpu_hash(thr_id, throughput, pdata[(datasize - 4) / 4], (datasize % 64) - 4, ms, result);

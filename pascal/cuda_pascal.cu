@@ -7,7 +7,7 @@
 void pascal_cpu_init(int thr_id);
 void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t startnonce, uint32_t nonceoffset, uint32_t *ms, uint32_t *const h_result);
 void pascal_midstate(const uint32_t *data, uint32_t *midstate);
-void copydata(uint32_t *data, uint32_t datasize);
+void copydata(const uint32_t *data);
 
 static THREAD uint32_t *d_result;
 
@@ -594,7 +594,7 @@ void pascal_cpu_init(int thr_id)
 {
 	CUDA_SAFE_CALL(cudaMalloc(&d_result, 2 * sizeof(uint32_t)));
 }
-void copydata(uint32_t *data, uint32_t datasize)
+void copydata(const uint32_t *data)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(c_data, data, 16*4, 0, cudaMemcpyHostToDevice));
 
