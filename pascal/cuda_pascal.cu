@@ -5,23 +5,25 @@
 #include "cuda_helper.h"
 
 void pascal_cpu_init(int thr_id);
-void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t datasize, uint32_t *ms, uint32_t *const h_result);
+void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t startnonce, uint32_t nonceoffset, uint32_t *ms, uint32_t *const h_result);
 void pascal_midstate(const uint32_t *data, uint32_t *midstate);
+void copydata(uint32_t *data, uint32_t datasize);
 
 static THREAD uint32_t *d_result;
 
 #define TPB 512
-#define NONCES_PER_THREAD 32
+#define NONCES_PER_THREAD 4
+
+static __constant__ uint32_t c_data[16];
 
 __global__ __launch_bounds__(TPB, 2)
-void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint32_t *data, const uint32_t nonceoffset, uint32_t ms0, const uint32_t ms1, const uint32_t ms2, const uint32_t ms3, const uint32_t ms4, const uint32_t ms5, const uint32_t ms6, const uint32_t ms7)
+void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint32_t startnonce, const uint32_t nonceoffset, uint32_t ms0, const uint32_t ms1, const uint32_t ms2, const uint32_t ms3, const uint32_t ms4, const uint32_t ms5, const uint32_t ms6, const uint32_t ms7)
 {
 	const uint32_t threadindex = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (threadindex < threads)
 	{
 		uint32_t s0, s1, t1, a, b, c, d, e, f, g, h;
 		uint32_t w[64];
-		const uint32_t startnonce = data[nonceoffset / 4];
 		const uint32_t numberofthreads = blockDim.x*gridDim.x;
 		const uint32_t maxnonce = startnonce + threadindex + numberofthreads*NONCES_PER_THREAD - 1;
 
@@ -29,7 +31,7 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 		{
 #pragma unroll
 			for(int i = 0; i <= 15; i++)
-				w[i] = data[i];
+				w[i] = c_data[i];
 			w[nonceoffset / 4] = nonce;
 #pragma unroll
 			for(int i = 16; i <= 63; i++)
@@ -574,7 +576,7 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 
 
 __host__
-void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t nonceoffset, uint32_t *ms, uint32_t *h_result)
+void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t startnonce, uint32_t nonceoffset, uint32_t *ms, uint32_t *h_result)
 {
 
 	uint32_t grid = (threads + TPB*NONCES_PER_THREAD - 1) / TPB / NONCES_PER_THREAD;
@@ -582,7 +584,7 @@ void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t *data, uint32_t nonc
 	CUDA_SAFE_CALL(cudaMemset(d_result, 0, 8));
 
 	//to do: optimization for suprnova.cc 
-	pascal_gpu_hash << <grid, TPB>>> (threads, d_result, data, nonceoffset, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7]);
+	pascal_gpu_hash << <grid, TPB>>> (threads, d_result, startnonce, nonceoffset, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7]);
 
 	CUDA_SAFE_CALL(cudaMemcpy(h_result, d_result, 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
 }
@@ -591,5 +593,10 @@ __host__
 void pascal_cpu_init(int thr_id)
 {
 	CUDA_SAFE_CALL(cudaMalloc(&d_result, 2 * sizeof(uint32_t)));
+}
+void copydata(uint32_t *data, uint32_t datasize)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(c_data, data, 16*4, 0, cudaMemcpyHostToDevice));
+
 }
 
