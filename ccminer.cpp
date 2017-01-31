@@ -1485,10 +1485,13 @@ static void *miner_thread(void *userdata)
 			case ALGO_SIA:
 				wcmplen = 80;
 				break;
+			case ALGO_PASCAL:
+				wcmplen = 196; // it's variable
+				break;
 			default:
 				wcmplen = 76;
 		}
-		uint32_t *nonceptr;
+		uint32_t *nonceptr = nullptr;
 		if(opt_algo!=ALGO_SIA)
 			nonceptr = (uint32_t*)(((char*)work.data) + wcmplen);
 		else
@@ -1557,7 +1560,6 @@ static void *miner_thread(void *userdata)
 			if(opt_algo == ALGO_PASCAL)
 			{
 				different = memcmp(work.data, g_work.data, g_work.size-4);
-				work.size = g_work.size;
 			}
 			else
 				different = memcmp(work.data, g_work.data, 7 * 4) || memcmp(work.data + 9, g_work.data + 9, 44);
@@ -1583,6 +1585,8 @@ static void *miner_thread(void *userdata)
 			if(opt_debug && opt_algo == ALGO_SIA)
 				applog(LOG_DEBUG, "thread %d: high nonce = %08X", thr_id, work.data[9]);
 			memcpy(&work, &g_work, sizeof(struct work));
+			if(opt_algo == ALGO_PASCAL)
+				nonceptr = work.data + work.size / 4 - 1;
 			nonceptr[0] = (UINT32_MAX / opt_n_threads) * thr_id; // 0 if single thr
 		}
 		else
@@ -1959,16 +1963,8 @@ static void *miner_thread(void *userdata)
 			}
 			else
 			{
-				if(opt_algo == ALGO_PASCAL)
-				{
-					found2 = work.data[63];
-					work.data[63] = databackup;
-				}
-				else
-				{
 					found2 = nonceptr[12];
 					nonceptr[12] = databackup;
-				}
 			}
 			if(!submit_work(mythr, &work))
 				break;
@@ -1995,23 +1991,11 @@ static void *miner_thread(void *userdata)
 				}
 			}
 			else
-				if(opt_algo == ALGO_PASCAL)
+				if(rc > 1 && nonceptr[12])
 				{
-					if(rc > 1 && work.data[63])
-					{
-						work.data[work.size/4 - 1] = found2;
-						if(!submit_work(mythr, &work))
-							break;
-					}
-				}
-				else
-				{
-					if(rc > 1 && nonceptr[12])
-					{
-						nonceptr[0] = found2;
-						if(!submit_work(mythr, &work))
-							break;
-					}
+					nonceptr[0] = found2;
+					if(!submit_work(mythr, &work))
+						break;
 				}
 		}
 		nonceptr[0] = start_nonce + hashes_done;

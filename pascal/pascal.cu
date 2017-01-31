@@ -187,7 +187,7 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 {
 	static THREAD uint32_t *result = nullptr;
 	static THREAD volatile bool init = false;
-
+	
 	const uint32_t first_nonce = pdata[datasize / 4 - 1];
 	uint32_t throughput = device_intensity(device_map[thr_id], __func__, 1U << 28);
 	throughput = min(throughput, (max_nonce - first_nonce));
@@ -265,7 +265,7 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 					pascal_hash(vhash64, pdata, datasize, result[1], ms);
 					if(!opt_verify || (vhash64[7] == 0 && fulltest(vhash64, ptarget)))
 					{
-						pdata[63] = result[1];
+						pdata[datasize / 4 + 1] = result[1];
 						res++;
 						if(opt_benchmark)
 							applog(LOG_INFO, "GPU #%d Found second nounce %08x", device_map[thr_id], result[1]);
