@@ -12,7 +12,7 @@ void copydata(const uint32_t *data);
 static THREAD uint32_t *d_result;
 
 #define TPB 512
-#define NONCES_PER_THREAD 1
+#define NONCES_PER_THREAD 4
 
 static __constant__ uint32_t c_data[16];
 
@@ -25,7 +25,7 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 		uint32_t s0, s1, t1, a, b, c, d, e, f, g, h;
 		uint32_t w[64];
 		const uint32_t numberofthreads = blockDim.x*gridDim.x;
-		const uint32_t maxnonce = startnonce + threadindex + numberofthreads*NONCES_PER_THREAD - 1;
+		const uint32_t maxnonce = startnonce + threadindex + numberofthreads * (NONCES_PER_THREAD - 1);
 
 		for (uint32_t nonce = startnonce + threadindex; nonce <= maxnonce; nonce += numberofthreads)
 		{
@@ -585,7 +585,7 @@ void pascal_8bytes_gpu_hash(const uint32_t threads, uint32_t *const result, cons
 		uint32_t t1, a, b, c, d, e, f, g, h;
 		uint32_t w[64];
 		const uint32_t numberofthreads = blockDim.x*gridDim.x;
-		const uint32_t maxnonce = startnonce + threadindex + numberofthreads*NONCES_PER_THREAD - 1;
+		const uint32_t maxnonce = startnonce + threadindex + numberofthreads * (NONCES_PER_THREAD - 1);
 
 		for(uint32_t nonce = startnonce + threadindex; nonce <= maxnonce; nonce += numberofthreads)
 		{
@@ -1157,9 +1157,9 @@ void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t startnonce, uint32_t
 
 	CUDA_SAFE_CALL(cudaMemset(d_result, 0, 8));
 
-	if(nonceoffset == 4)
-		pascal_8bytes_gpu_hash << <grid, TPB >> > (threads, d_result, startnonce, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7]);
-	else
+//	if(nonceoffset == 4)
+//		pascal_8bytes_gpu_hash << <grid, TPB >> > (threads, d_result, startnonce, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7]);
+//	else
 		pascal_gpu_hash << <grid, TPB>>> (threads, d_result, startnonce, nonceoffset, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7]);
 
 	CUDA_SAFE_CALL(cudaMemcpy(h_result, d_result, 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
