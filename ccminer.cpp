@@ -1363,7 +1363,11 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		if(opt_algo != ALGO_SIA)
 			tm = atime2str(swab32(work->data[17]) - sctx->srvtime_diff);
 		else
-			tm = atime2str(work->data[10] - sctx->srvtime_diff);
+			if(opt_algo == ALGO_PASCAL)
+				tm = atime2str(work->data[work->size / 4 - 2] - sctx->srvtime_diff);
+			else
+				tm = atime2str(work->data[10] - sctx->srvtime_diff);
+
 		char *xnonce2str = bin2hex(work->xnonce2, sctx->xnonce2_size);
 		applog(LOG_DEBUG, "DEBUG: job_id=%s xnonce2=%s time=%s",
 					 work->job_id, xnonce2str, tm);
