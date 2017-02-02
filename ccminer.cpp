@@ -704,14 +704,24 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 		}
 		else
 		{
-			le32enc(&ntime, work->data[10]);
-			uint64_t ntime64 = ntime;
-			le32enc(&nonce, work->data[8]);
-			uint64_t nonce64 = nonce;
-			le32enc(&nonce, work->data[9]);
-			nonce64 += (uint64_t)nonce << 32;
-			noncestr = bin2hex((const uchar*)(&nonce64), 8);
-			ntimestr = bin2hex((const uchar*)(&ntime64), 8);
+			if(opt_algo != ALGO_PASCAL)
+			{
+				le32enc(&ntime, work->data[10]);
+				uint64_t ntime64 = ntime;
+				le32enc(&nonce, work->data[8]);
+				uint64_t nonce64 = nonce;
+				le32enc(&nonce, work->data[9]);
+				nonce64 += (uint64_t)nonce << 32;
+				noncestr = bin2hex((const uchar*)(&nonce64), 8);
+				ntimestr = bin2hex((const uchar*)(&ntime64), 8);
+			}
+			else
+			{
+				le32enc(&ntime, work->data[(work->size) / 4 - 2]);
+				le32enc(&nonce, work->data[(work->size) / 4 - 1]);
+				noncestr = bin2hex((const uchar*)(&nonce), 4);
+				ntimestr = bin2hex((const uchar*)(&ntime), 4);
+			}
 		}
 
 
