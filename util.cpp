@@ -1483,10 +1483,13 @@ static bool stratum_notify(struct stratum_ctx *sctx, json_t *params)
 		memset(sctx->job.xnonce2, fill, sctx->xnonce2_size);
 	}
 	hex2bin(sctx->job.xnonce2 + sctx->xnonce2_size, coinb2, coinb2_size);
-	if(opt_algo != ALGO_SIA)
-		sctx->job.height = getblocheight(sctx);
-	else
+	if(opt_algo == ALGO_SIA)
 		sctx->job.height = 1;
+	else
+		if(opt_algo == ALGO_PASCAL)
+			hex2bin((uchar*)&(sctx->job.height), coinb1, 4);
+		else
+			sctx->job.height = getblocheight(sctx);
 
 
 	free(sctx->job.job_id);
