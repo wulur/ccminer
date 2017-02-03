@@ -695,16 +695,16 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 		uint16_t nvote;
 		char *ntimestr, *noncestr, *xnonce2str, *nvotestr;
 
-		if(opt_algo != ALGO_SIA)
+		if(opt_algo == ALGO_PASCAL)
 		{
-			le32enc(&ntime, work->data[17]);
-			le32enc(&nonce, work->data[19]);
+			le32enc(&ntime, work->data[(work->size) / 4 - 2]);
+			le32enc(&nonce, work->data[(work->size) / 4 - 1]);
 			noncestr = bin2hex((const uchar*)(&nonce), 4);
 			ntimestr = bin2hex((const uchar*)(&ntime), 4);
 		}
 		else
 		{
-			if(opt_algo != ALGO_PASCAL)
+			if(opt_algo == ALGO_SIA)
 			{
 				le32enc(&ntime, work->data[10]);
 				uint64_t ntime64 = ntime;
@@ -717,13 +717,12 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 			}
 			else
 			{
-				le32enc(&ntime, work->data[(work->size) / 4 - 2]);
-				le32enc(&nonce, work->data[(work->size) / 4 - 1]);
+				le32enc(&ntime, work->data[17]);
+				le32enc(&nonce, work->data[19]);
 				noncestr = bin2hex((const uchar*)(&nonce), 4);
 				ntimestr = bin2hex((const uchar*)(&ntime), 4);
 			}
 		}
-
 
 		if(check_dups)
 			sent = hashlog_already_submittted(work->job_id, nonce);
