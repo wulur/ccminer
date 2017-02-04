@@ -77,7 +77,7 @@ void pascal_hash(uint32_t *output, const uint32_t *data, uint32_t datasize, uint
 	w[8] = 0x80000000U;
 	for(i = 9; i <= 14; i++)
 		w[i] = 0U;
-	w[15] = 0x100U;
+	w[15] = 0x0100U;
 	for(i = 16; i <= 63; i++)
 	{
 		s0 = rrot(w[i - 15], 7) ^ rrot(w[i - 15], 18) ^ (w[i - 15] >> 3);
@@ -225,22 +225,22 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 	
 	if(datasize == 200) // suprnova.cc
 	{
-		pdata[50] = 0x80;
+		pdata[50] = 0x80000000;
 		for(int i = 51; i < 63; i++)
 			pdata[i] = 0;
-		pdata[63] = 0x40060000;
+		pdata[63] = 0x00000640;
 	}
 	else
 	{
 		if(datasize % 64 > 0)
 		{
-			uint8_t *data8 = (uint8_t*)pdata;
-			data8[datasize] = 0x80;
-			for(int i = 1; i < 61 - datasize % 64; i++)
-				data8[datasize + i] = 0;
-			pdata[datasize / 64 * 16 + 15] = swab32(datasize * 8);
+			pdata[datasize / 4] = 0x80000000;
+			for(int i = 1; i <= 16 - datasize % 64 / 4; i++)
+				pdata[datasize/4 + i] = 0;
+			pdata[datasize / 64 * 16 + 15] = datasize * 8;
 		}
 	}
+
 	copydata(pdata+datasize/64*16);
 	do
 	{
@@ -278,7 +278,7 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 						}
 					}
 				}
-				pdata[datasize / 4 - 1] = result[0];
+				pdata[datasize / 4 - 1] = swab32(result[0]);
 				if(opt_benchmark)
 					applog(LOG_INFO, "GPU #%d Found nounce %08x", device_map[thr_id], result[0]);
 				return res;
