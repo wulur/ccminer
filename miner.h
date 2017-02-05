@@ -612,7 +612,7 @@ struct stratum_ctx {
 };
 
 struct work {
-	uint32_t data[64];
+	uint32_t data[128];
 	uint32_t size;
 	uint32_t midstate[8];
 	uint32_t target[8];
@@ -620,7 +620,7 @@ struct work {
 
 	char job_id[128];
 	size_t xnonce2_len;
-	uchar xnonce2[32];
+	uchar xnonce2[256];
 
 	union {
 		uint32_t u32[2];
