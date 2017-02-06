@@ -1521,7 +1521,12 @@ static void *miner_thread(void *userdata)
 			if(loopcnt == 0 || time(NULL) >= (g_work_time + opt_scantime))
 				extrajob = true;
 			pthread_mutex_lock(&g_work_lock);
-			if(nonceptr[0] >= end_nonce - 0x00010000 || extrajob)
+			uint32_t rest;
+			if(opt_algo == ALGO_PASCAL)
+				rest = 0x10000000;
+			else
+				rest = 0x00010000;
+			if(nonceptr[0] >= end_nonce - rest || extrajob)
 			{
 				extrajob = false;
 				while(!stratum_gen_work(&stratum, &g_work))
@@ -1566,8 +1571,8 @@ static void *miner_thread(void *userdata)
 		}
 
 		int different;
-		if(opt_algo != ALGO_SIA)
-			different = memcmp(work.data, g_work.data, wcmplen);
+		if(opt_algo == ALGO_SIA)
+			different = memcmp(work.data, g_work.data, 7 * 4) || memcmp(work.data + 9, g_work.data + 9, 44);
 		else
 		{
 			if(opt_algo == ALGO_PASCAL)
@@ -1575,7 +1580,7 @@ static void *miner_thread(void *userdata)
 				different = memcmp(work.data, g_work.data, g_work.size-4);
 			}
 			else
-				different = memcmp(work.data, g_work.data, 7 * 4) || memcmp(work.data + 9, g_work.data + 9, 44);
+				different = memcmp(work.data, g_work.data, wcmplen);
 		}
 		if(different)
 		{
@@ -1703,15 +1708,11 @@ static void *miner_thread(void *userdata)
 		hashes_done = 0;
 		gettimeofday(&tv_start, NULL);
 		uint32_t databackup;
-		if(opt_algo != ALGO_SIA)
-			databackup = nonceptr[2];
+		if(opt_algo == ALGO_SIA)
+			databackup = nonceptr[12];
 		else
-		{
-			if(opt_algo == ALGO_PASCAL)
-				databackup = work.data[63];
-			else
-				databackup = nonceptr[12];
-		}
+			databackup = nonceptr[2];
+
 		/* scan nonces for a proof-of-work hash */
 		switch(opt_algo)
 		{
