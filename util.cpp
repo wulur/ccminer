@@ -1412,10 +1412,10 @@ static bool stratum_notify(struct stratum_ctx *sctx, json_t *params)
 
 	/* store stratum server time diff */
 	hex2bin((uchar *)&ntime, stime, 4);
-	if(opt_algo!=ALGO_SIA)
-		ntime = swab32(ntime) - (uint32_t)time(0);
-	else
+	if(opt_algo == ALGO_SIA)
 		ntime = ntime - (uint32_t)time(0);
+	else
+		ntime = swab32(ntime) - (uint32_t)time(0);
 
 	pthread_mutex_lock(&sctx->work_lock);
 
@@ -1475,10 +1475,10 @@ static bool stratum_notify(struct stratum_ctx *sctx, json_t *params)
 	if(!sctx->job.job_id || strcmp(sctx->job.job_id, job_id))
 	{
 		char fill;
-		if(opt_algo != ALGO_PASCAL)
-			fill = '\0';
-		else
+		if(opt_algo == ALGO_PASCAL)
 			fill = ' ';
+		else
+			fill = '\0';
 
 		memset(sctx->job.xnonce2, fill, sctx->xnonce2_size);
 	}
