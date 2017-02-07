@@ -178,7 +178,7 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 			w[30] = w[23] + (ROTR32(0x100, 7) ^ ROTR32(0x100, 18) ^ (0x100 >> 3)) + (ROTR32(w[28], 17) ^ ROTR32(w[28], 19) ^ (w[28] >> 10));
 			w[31] = 0x100 + w[24] + (ROTR32(w[16], 7) ^ ROTR32(w[16], 18) ^ (w[16] >> 3)) + (ROTR32(w[29], 17) ^ ROTR32(w[29], 19) ^ (w[29] >> 10));
 #pragma unroll
-			for (int i = 32; i < 59; i++)
+			for (int i = 32; i < 64; i++)
 				w[i] = w[i - 16] + w[i - 7] + (ROTR32(w[i - 15], 7) ^ ROTR32(w[i - 15], 18) ^ (w[i - 15] >> 3)) + (ROTR32(w[i - 2], 17) ^ ROTR32(w[i - 2], 19) ^ (w[i - 2] >> 10));
 
 			d = 0x98c7e2a2U + w[0];
@@ -273,16 +273,25 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 			round(b, c, d, e, f, g, h, a, 55);
 
 			round(a, b, c, d, e, f, g, h, 56);
+			round(h, a, b, c, d, e, f, g, 57);
+			round(g, h, a, b, c, d, e, f, 58);
+			round(f, g, h, a, b, c, d, e, 59);
+			round(e, f, g, h, a, b, c, d, 60);
+			round(d, e, f, g, h, a, b, c, 61);
+			round(c, d, e, f, g, h, a, b, 62);
+			round(b, c, d, e, f, g, h, a, 63);
 
-			c += g + rot1(d) + maj(d, e, f) + 0x78a5636fU + w[57];
-			
-			b += f + rot1(c) + maj(c, d, e) + 0x84c87814U + w[58];
-			
-			a += e + rot1(b) + maj(b, c, d) + 0x8cc70208U + w[43] + w[52] + (ROTR32(w[44], 7) ^ ROTR32(w[44], 18) ^ (w[44] >> 3)) + (ROTR32(w[57], 17) ^ ROTR32(w[57], 19) ^ (w[57] >> 10));
-			
-			h += d + rot1(a) + maj(a, b, c) + 0x90befffaU + w[44] + w[53] + (ROTR32(w[45], 7) ^ ROTR32(w[45], 18) ^ (w[45] >> 3)) + (ROTR32(w[58], 17) ^ ROTR32(w[58], 19) ^ (w[58] >> 10));
-			
-			if (h == 0xa41f32e7)
+			a += 0x6A09E667;
+			b += 0xBB67AE85;
+			c += 0x3C6EF372;
+			d += 0xA54FF53A;
+			e += 0x510E527F;
+			f += 0x9B05688C;
+			g += 0x1F83D9AB;
+			h += 0x5BE0CD19;
+
+
+			if (a == 0)
 			{
 				uint32_t tmp = atomicCAS(result, 0, nonce);
 				if (tmp != 0)
@@ -291,7 +300,7 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 		} // nonce loop
 	} // if thread<threads
 }
-
+/*
 #define s0(x) (ROTR32(x, 7) ^ ROTR32(x, 18) ^ (x >> 3))
 #define s1(x) (ROTR32(x, 17) ^ ROTR32(x, 19) ^ (x >> 10))
 __global__ __launch_bounds__(TPB, 2)
@@ -866,7 +875,7 @@ void pascal_8bytes_gpu_hash(const uint32_t threads, uint32_t *const result, cons
 		} // nonce loop
 	} // if thread<threads
 }
-
+*/
 __host__
 void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t startnonce, uint32_t nonceoffset, uint32_t *ms, uint32_t *h_result)
 {

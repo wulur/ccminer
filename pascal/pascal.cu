@@ -8,6 +8,27 @@ void copydata(const uint32_t *data);
 
 #define rrot(x, n)	ROTR32(x, n)
 
+bool fulltest_pascal(const uint32_t *vhash64, const uint32_t *ptarget)
+{
+	if(vhash64[0] > ptarget[7])
+		return false;
+	if(vhash64[1] > ptarget[6])
+		return false;
+	if(vhash64[2] > ptarget[5])
+		return false;
+	if(vhash64[3] > ptarget[4])
+		return false;
+	if(vhash64[4] > ptarget[3])
+		return false;
+	if(vhash64[5] > ptarget[2])
+		return false;
+	if(vhash64[6] > ptarget[1])
+		return false;
+	if(vhash64[7] > ptarget[0])
+		return false;
+	return true;
+}
+
 void pascal_hash(uint32_t *output, const uint32_t *data, uint32_t datasize, uint32_t nonce, const uint32_t *midstate)
 {
 	int i;
@@ -109,14 +130,14 @@ void pascal_hash(uint32_t *output, const uint32_t *data, uint32_t datasize, uint
 		b = a;
 		a = t1 + t2;
 	}
-	be32enc(&output[0], a + hc[0]);
-	be32enc(&output[1], b + hc[1]);
-	be32enc(&output[2], c + hc[2]);
-	be32enc(&output[3], d + hc[3]);
-	be32enc(&output[4], e + hc[4]);
-	be32enc(&output[5], f + hc[5]);
-	be32enc(&output[6], g + hc[6]);
-	be32enc(&output[7], h + hc[7]);
+	output[0] = a + hc[0];
+	output[1] = b + hc[1];
+	output[2] = c + hc[2];
+	output[3] = d + hc[3];
+	output[4] = e + hc[4];
+	output[5] = f + hc[5];
+	output[6] = g + hc[6];
+	output[7] = h + hc[7];
 }
 
 void pascal_midstate(const uint32_t *data, uint32_t *hc)
@@ -255,15 +276,16 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 		{
 			uint32_t vhash64[8] = {0};
 			pascal_hash(vhash64, pdata, datasize, result[0], ms);
-			if(!opt_verify || (vhash64[7] == 0 && fulltest(vhash64, ptarget)))
+
+			if(!opt_verify || (vhash64[0] == 0 && fulltest_pascal(vhash64, ptarget)))
 			{
 				int res = 1;
 				// check if there was some other ones...
 				*hashes_done = pdata[datasize / 4 - 1] - first_nonce + throughput;
-				if(result[1] != 0 && datasize <= 252)
+				if(result[1] != 0)
 				{
 					pascal_hash(vhash64, pdata, datasize, result[1], ms);
-					if(!opt_verify || (vhash64[7] == 0 && fulltest(vhash64, ptarget)))
+					if(!opt_verify || (vhash64[0] == 0 && fulltest_pascal(vhash64, ptarget)))
 					{
 						pdata[datasize / 4 + 1] = result[1];
 						res++;
@@ -272,20 +294,20 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 					}
 					else
 					{
-						if(vhash64[7] > 0)
+						if(vhash64[0] > 0)
 						{
 							applog(LOG_WARNING, "GPU #%d: result for %08x does not validate on CPU!", device_map[thr_id], result[1]);
 						}
 					}
 				}
-				pdata[datasize / 4 - 1] = swab32(result[0]);
+				pdata[datasize / 4 - 1] = result[0];
 				if(opt_benchmark)
 					applog(LOG_INFO, "GPU #%d Found nounce %08x", device_map[thr_id], result[0]);
 				return res;
 			}
 			else
 			{
-				if(vhash64[7] > 0)
+				if(vhash64[0] > 0)
 				{
 					applog(LOG_WARNING, "GPU #%d: result for %08x does not validate on CPU!", device_map[thr_id], result[0]);
 				}
