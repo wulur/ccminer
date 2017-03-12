@@ -53,7 +53,6 @@ BOOL WINAPI ConsoleHandler(DWORD);
 
 #define PROGRAM_NAME		"ccminer"
 #define LP_SCANTIME		25
-#define HEAVYCOIN_BLKHDR_SZ		84
 #define MNR_BLKHDR_SZ 80
 
 // from cuda.cpp
@@ -93,12 +92,10 @@ static const char *algo_names[] = {
 	"fresh",
 	"fugue256",
 	"groestl",
-	"heavy",
 	"keccak",
 	"jackpot",
 	"luffa",
 	"lyra2v2",
-	"mjollnir",
 	"myr-gr",
 	"nist5",
 	"pascal",
@@ -149,7 +146,6 @@ int opt_priority = 0;
 static double opt_difficulty = 1; // CH
 static bool opt_extranonce = true;
 bool opt_trust_pool = false;
-uint16_t opt_vote = 9999;
 int num_cpus;
 int active_gpus;
 char * device_name[MAX_GPUS] = { nullptr };
@@ -221,12 +217,10 @@ Options:\n\
 			fresh       Freshcoin (shavite 80)\n\
 			fugue256    Fuguecoin\n\
 			groestl     Groestlcoin\n\
-			heavy       Heavycoin\n\
 			jackpot     Jackpot\n\
 			keccak      Keccak-256 (Maxcoin)\n\
 			luffa       Doomcoin\n\
 			lyra2v2     VertCoin\n\
-			mjollnir    Mjollnircoin\n\
 			myr-gr      Myriad-Groestl\n\
 			neoscrypt   neoscrypt (FeatherCoin)\n\
 			nist5       NIST5 (TalkCoin)\n\
@@ -255,7 +249,6 @@ Options:\n\
                         Decimals are allowed for fine tuning \n\
   -f, --diff-factor     Divide difficulty by this factor (default 1.0) \n\
   -m, --diff-multiplier Multiply difficulty by this value (default 1.0) \n\
-  -v, --vote=VOTE       block reward vote (for HeavyCoin)\n\
   -o, --url=URL         URL of mining server\n\
   -O, --userpass=U:P    username:password pair for mining server\n\
   -u, --user=USERNAME   username for mining server\n\
@@ -307,7 +300,7 @@ static char const short_options[] =
 #ifdef HAVE_SYSLOG_H
 "S"
 #endif
-"a:c:i:Dhp:Px:nqr:R:s:t:T:o:u:O:Vd:f:m:v:N:b:e";
+"a:c:i:Dhp:Px:nqr:R:s:t:T:o:u:O:Vd:f:m:N:b:e";
 
 static struct option const options[] =
 {
@@ -345,7 +338,6 @@ static struct option const options[] =
 #endif
 	{ "threads", 1, NULL, 't' },
 	{ "Disable extranounce support", 1, NULL, 'e' },
-	{ "vote", 1, NULL, 'v' },
 	{ "timeout", 1, NULL, 'T' },
 	{ "url", 1, NULL, 'o' },
 	{ "user", 1, NULL, 'u' },
@@ -548,15 +540,6 @@ static bool work_decode(const json_t *val, struct work *work)
 			work->midstate[i] = le32dec(work->midstate + i);
 	}
 
-	if(opt_algo == ALGO_HEAVY)
-	{
-		if(unlikely(!jobj_binary(val, "maxvote", &work->maxvote, sizeof(work->maxvote))))
-		{
-			work->maxvote = 2048;
-		}
-	}
-	else work->maxvote = 0;
-
 	for(i = 0; i < adata_sz; i++)
 		work->data[i] = le32dec(work->data + i);
 	for(i = 0; i < atarget_sz; i++)
@@ -594,11 +577,6 @@ static void calc_diff(struct work *work, int known)
 
 	swab256(rtarget, work->target);
 	data64 = (uint64_t *)(rtarget + 3); /* todo: index (3) can be tuned here */
-
-	if(opt_algo == ALGO_HEAVY)
-	{
-		data64 = (uint64_t *)(rtarget + 2);
-	}
 
 	d64 = swab64(*data64);
 	if(unlikely(!d64))
@@ -692,8 +670,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 	{
 		uint32_t sent = 0;
 		uint32_t ntime, nonce;
-		uint16_t nvote;
-		char *ntimestr, *noncestr, *xnonce2str, *nvotestr;
+		char *ntimestr, *noncestr, *xnonce2str;
 
 		if(opt_algo == ALGO_PASCAL)
 		{
@@ -743,21 +720,9 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 
 		xnonce2str = bin2hex(work->xnonce2, work->xnonce2_len);
 
-		if(opt_algo == ALGO_HEAVY)
-		{
-			be16enc(&nvote, *((uint16_t*)&work->data[20]));
-			nvotestr = bin2hex((const uchar*)(&nvote), 2);
-			sprintf(s,
-					"{\"method\": \"mining.submit\", \"params\": [\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"], \"id\":4}",
-					rpc_user, work->job_id + 8, xnonce2str, ntimestr, noncestr, nvotestr);
-			free(nvotestr);
-		}
-		else
-		{
-			sprintf(s,
-					"{\"method\": \"mining.submit\", \"params\": [\"%s\", \"%s\", \"%s\", \"%s\", \"%s\"], \"id\":4}",
-					rpc_user, work->job_id + 8, xnonce2str, ntimestr, noncestr);
-		}
+		sprintf(s,
+				"{\"method\": \"mining.submit\", \"params\": [\"%s\", \"%s\", \"%s\", \"%s\", \"%s\"], \"id\":4}",
+				rpc_user, work->job_id + 8, xnonce2str, ntimestr, noncestr);
 		free(xnonce2str);
 		free(ntimestr);
 		free(noncestr);
@@ -791,11 +756,8 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 				data_size = 128;
 				break;
 		}
-		if(opt_algo != ALGO_HEAVY && opt_algo != ALGO_MJOLLNIR)
-		{
-			for(int i = 0; i < (data_size >> 2); i++)
-				le32enc(work->data + i, work->data[i]);
-		}
+		for(int i = 0; i < (data_size >> 2); i++)
+			le32enc(work->data + i, work->data[i]);
 		str = bin2hex((uchar*)work->data, data_size);
 		if(unlikely(!str))
 		{
@@ -1248,10 +1210,6 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		/* Generate merkle root */
 		switch(opt_algo)
 		{
-			case ALGO_HEAVY:
-			case ALGO_MJOLLNIR:
-				heavycoin_hash(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
-				break;
 			case ALGO_FUGUE256:
 			case ALGO_GROESTL:
 			case ALGO_KECCAK:
@@ -1282,10 +1240,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 			else
 			{
 				memcpy(merkle_root + 32, sctx->job.merkle[i], 32);
-				if(opt_algo == ALGO_HEAVY || opt_algo == ALGO_MJOLLNIR)
-					heavycoin_hash(merkle_root, merkle_root, 64);
-				else
-					sha256d(merkle_root, merkle_root, 64);
+				sha256d(merkle_root, merkle_root, 64);
 			}
 		}
 	}
@@ -1325,15 +1280,8 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 			work->data[9 + i] = be32dec((uint32_t *)merkle_root + i);
 		work->data[17] = le32dec(sctx->job.ntime);
 		work->data[18] = le32dec(sctx->job.nbits);
-
-		if(opt_algo == ALGO_MJOLLNIR || opt_algo == ALGO_HEAVY)
-		{
-			for(i = 0; i < 20; i++)
-				work->data[i] = be32dec((uint32_t *)&work->data[i]);
-		}
-
 		work->data[20] = 0x80000000;
-		work->data[31] = (opt_algo == ALGO_MJOLLNIR) ? 0x000002A0 : 0x00000280;
+		work->data[31] = 0x00000280;
 	}
 	if(opt_algo == ALGO_SIA)
 	{
@@ -1356,15 +1304,6 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		work->size = (uint32_t)(sctx->job.coinbase_size) + 8;
 	}
 
-	// HeavyCoin (vote / reward)
-	if(opt_algo == ALGO_HEAVY)
-	{
-		work->maxvote = 2048;
-		uint16_t *ext = (uint16_t*)(&work->data[20]);
-		ext[0] = opt_vote;
-		ext[1] = be16dec(sctx->job.nreward);
-		// applog(LOG_DEBUG, "DEBUG: vote=%hx reward=%hx", ext[0], ext[1]);
-	}
 	pthread_mutex_unlock(&sctx->work_lock);
 	if(opt_debug)
 	{
@@ -1386,25 +1325,20 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 
 	switch(opt_algo)
 	{
-	case ALGO_JACKPOT:
-	case ALGO_NEO:
-		diff_to_target(work->target, sctx->job.diff / (65536.0 * opt_difficulty));
-		break;
-	case ALGO_DMD_GR:
-	case ALGO_FRESH:
-	case ALGO_FUGUE256:
-	case ALGO_GROESTL:
-		diff_to_target(work->target, sctx->job.diff / (256.0 * opt_difficulty));
-		break;
-	case ALGO_KECCAK:
-		case ALGO_LYRA2v2:
-		diff_to_target(work->target, sctx->job.diff / (256.0 * opt_difficulty));
-		break;
-			diff_to_target(work->target, sctx->job.diff / (128.0 * opt_difficulty));
+		case ALGO_JACKPOT:
+		case ALGO_NEO:
+			diff_to_target(work->target, sctx->job.diff / (65536.0 * opt_difficulty));
 			break;
-
-	default:
-		diff_to_target(work->target, sctx->job.diff / opt_difficulty);
+		case ALGO_DMD_GR:
+		case ALGO_FRESH:
+		case ALGO_FUGUE256:
+		case ALGO_GROESTL:
+		case ALGO_KECCAK:
+		case ALGO_LYRA2v2:
+			diff_to_target(work->target, sctx->job.diff / (256.0 * opt_difficulty));
+			break;
+		default:
+			diff_to_target(work->target, sctx->job.diff / opt_difficulty);
 	}
 	return true;
 }
@@ -1717,19 +1651,9 @@ static void *miner_thread(void *userdata)
 		switch(opt_algo)
 		{
 
-		case ALGO_HEAVY:
-			rc = scanhash_heavy(thr_id, work.data, work.target,
-								max_nonce, &hashes_done, work.maxvote, HEAVYCOIN_BLKHDR_SZ);
-			break;
-
 		case ALGO_KECCAK:
 			rc = scanhash_keccak256(thr_id, work.data, work.target,
 									max_nonce, &hashes_done);
-			break;
-
-		case ALGO_MJOLLNIR:
-			rc = scanhash_heavy(thr_id, work.data, work.target,
-								max_nonce, &hashes_done, 0, MNR_BLKHDR_SZ);
 			break;
 
 		case ALGO_DEEP:
@@ -2436,12 +2360,6 @@ static void parse_arg(int key, char *arg)
 			show_usage_and_exit(1);
 		opt_n_threads = v;
 		break;
-	case 'v':
-		v = atoi(arg);
-		if(v < 0 || v > 8192)	/* sanity check */
-			show_usage_and_exit(1);
-		opt_vote = (uint16_t)v;
-		break;
 	case 'u':
 		free(rpc_user);
 		rpc_user = strdup(arg);
@@ -2762,12 +2680,6 @@ static void parse_cmdline(int argc, char *argv[])
 
 	parse_config();
 
-	if(opt_algo == ALGO_HEAVY && opt_vote == 9999)
-	{
-		fprintf(stderr, "%s: Heavycoin hash requires block reward vote parameter (see --vote)\n",
-				argv[0]);
-		show_usage_and_exit(1);
-	}
 }
 
 #ifndef WIN32
