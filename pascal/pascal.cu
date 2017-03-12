@@ -10,14 +10,22 @@ void copydata(const uint32_t *data);
 
 bool fulltest_pascal(const uint32_t *vhash64, const uint32_t *ptarget)
 {
-	for(int i = 0; i < 8; i++)
-	{
-		if(vhash64[i] > ptarget[7 - i])
-			return false;
-		else
-			if(vhash64[i] < ptarget[7 - i])
-				return true;
-	}
+	if(vhash64[0] > ptarget[7])
+		return false;
+	if(vhash64[1] > ptarget[6])
+		return false;
+	if(vhash64[2] > ptarget[5])
+		return false;
+	if(vhash64[3] > ptarget[4])
+		return false;
+	if(vhash64[4] > ptarget[3])
+		return false;
+	if(vhash64[5] > ptarget[2])
+		return false;
+	if(vhash64[6] > ptarget[1])
+		return false;
+	if(vhash64[7] > ptarget[0])
+		return false;
 	return true;
 }
 
