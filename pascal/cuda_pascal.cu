@@ -65,7 +65,7 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 		const uint32_t numberofthreads = blockDim.x*gridDim.x;
 		const uint32_t maxnonce = startnonce + threadindex + numberofthreads * (NONCES_PER_THREAD - 1);
 
-		for (uint32_t nonce = startnonce + threadindex; nonce <= maxnonce; nonce += numberofthreads)
+		for (uint32_t nonce = startnonce + threadindex; nonce-1 < maxnonce; nonce += numberofthreads)
 		{
 #pragma unroll
 			for(int i = 0; i <= 15; i++)
