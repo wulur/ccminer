@@ -1455,12 +1455,8 @@ static void *miner_thread(void *userdata)
 			if(loopcnt == 0 || time(NULL) >= (g_work_time + opt_scantime))
 				extrajob = true;
 			pthread_mutex_lock(&g_work_lock);
-			uint32_t rest;
-			if(opt_algo == ALGO_PASCAL)
-				rest = 0x10000000;
-			else
-				rest = 0x00010000;
-			if(nonceptr[0] >= end_nonce - rest || extrajob)
+
+			if((nonceptr[0] >= end_nonce - 0x00010000) || extrajob)
 			{
 				extrajob = false;
 				while(!stratum_gen_work(&stratum, &g_work))
