@@ -200,6 +200,7 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 {
 	static THREAD uint32_t *result = nullptr;
 	static THREAD volatile bool init = false;
+	static THREAD uint32_t *pdata2 = nullptr;
 
 	const uint32_t first_nonce = pdata[datasize / 4 - 1];
 	uint32_t throughput = device_intensity(device_map[thr_id], __func__, 1U << 28);
@@ -216,8 +217,32 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 
 		pascal_cpu_init(thr_id);
 		CUDA_SAFE_CALL(cudaMallocHost(&result, 2 * sizeof(uint32_t)));
+		CUDA_SAFE_CALL(cudaMallocHost(&pdata2, datasize+64));
 		result[0] = 0; result[1] = 0;
 		init = true;
+	}
+	const int chunks = datasize / 64;
+	const int datasize32 = datasize / 4;
+
+	// change endianness
+	for(size_t i = 0; i < datasize32; i ++)
+		pdata2[i] = swab32(pdata[i]);
+
+	// padding overflow
+	if(datasize % 64 > 53)
+	{
+		applog(LOG_ERR, "Error: data size %d is not being supported yet", datasize);
+		sleep(1);
+		return 0;
+	}
+
+	// add padding
+	if(datasize % 64 > 0)
+	{
+		pdata2[datasize32] = 0x80000000;
+		for(int i = 1; i <= 16 - datasize32 % 16; i++)
+			pdata2[datasize32 + i] = 0;
+		pdata2[chunks * 16 + 15] = datasize * 8;
 	}
 
 	uint32_t ms[8] =
@@ -226,38 +251,17 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 		0x510e527fU, 0x9b05688cU, 0x1f83d9abU, 0x5be0cd19U
 	};
 
-	if(datasize > 64)
-		pascal_midstate(pdata, ms);
-	if(datasize > 128)
-		pascal_midstate(pdata + 16, ms);
-	if(datasize > 192)
-		pascal_midstate(pdata + 32, ms);
+	if(chunks > 0)
+		pascal_midstate(pdata2, ms);
+	if(chunks > 1)
+		pascal_midstate(pdata2 + 16, ms);
+	if(chunks > 2)
+		pascal_midstate(pdata2 + 32, ms);
 
-	if(datasize % 64 > 53)
-		applog(LOG_ERR, "Error: data size %d is not being supported yet", datasize);
-	
-	if(datasize == 200) // suprnova.cc
-	{
-		pdata[50] = 0x80000000;
-		for(int i = 51; i < 63; i++)
-			pdata[i] = 0;
-		pdata[63] = 0x00000640;
-	}
-	else
-	{
-		if(datasize % 64 > 0)
-		{
-			pdata[datasize / 4] = 0x80000000;
-			for(int i = 1; i <= 16 - datasize % 64 / 4; i++)
-				pdata[datasize/4 + i] = 0;
-			pdata[datasize / 64 * 16 + 15] = datasize * 8;
-		}
-	}
-
-	copydata(pdata+datasize/64*16);
+	copydata(pdata2 + chunks * 16);
 	do
 	{
-		pascal_cpu_hash(thr_id, throughput, pdata[(datasize - 4) / 4], (datasize % 64) - 4, ms, result);
+		pascal_cpu_hash(thr_id, throughput, pdata2[datasize32 - 1], (datasize % 64) - 4, ms, result);
 
 		if(stop_mining)
 		{
@@ -267,19 +271,19 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 		if(result[0] != 0)
 		{
 			uint32_t vhash64[8] = {0};
-			pascal_hash(vhash64, pdata, datasize, result[0], ms);
+			pascal_hash(vhash64, pdata2, datasize, result[0], ms);
 
 			if(!opt_verify || (vhash64[0] == 0 && fulltest_pascal(vhash64, ptarget)))
 			{
 				int res = 1;
 				// check if there was some other ones...
-				*hashes_done = pdata[datasize / 4 - 1] - first_nonce + throughput;
+				*hashes_done = pdata2[datasize32 - 1] - first_nonce + throughput;
 				if(result[1] != 0)
 				{
-					pascal_hash(vhash64, pdata, datasize, result[1], ms);
+					pascal_hash(vhash64, pdata2, datasize, result[1], ms);
 					if(!opt_verify || (vhash64[0] == 0 && fulltest_pascal(vhash64, ptarget)))
 					{
-						pdata[datasize / 4 + 1] = result[1];
+						pdata[datasize32 + 1] = result[1];
 						res++;
 						if(opt_benchmark)
 							applog(LOG_INFO, "GPU #%d Found second nounce %08x", device_map[thr_id], result[1]);
@@ -292,7 +296,7 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 						}
 					}
 				}
-				pdata[datasize / 4 - 1] = result[0];
+				pdata[datasize32 - 1] = result[0];
 				if(opt_benchmark)
 					applog(LOG_INFO, "GPU #%d Found nounce %08x", device_map[thr_id], result[0]);
 				return res;
@@ -306,10 +310,10 @@ int scanhash_pascal(int thr_id, uint32_t *pdata, uint32_t datasize,
 			}
 		}
 
-		pdata[datasize / 4 - 1] += throughput;
-	} while(!work_restart[thr_id].restart && max_nonce - throughput > pdata[datasize / 4 - 1]);
+		pdata2[datasize32 - 1] += throughput;
+	} while(!work_restart[thr_id].restart && max_nonce - throughput > pdata2[datasize32 - 1]);
 
-	*hashes_done = pdata[datasize / 4 - 1] - first_nonce;
+	*hashes_done = pdata2[datasize32 - 1] - first_nonce;
 
 	return 0;
 }

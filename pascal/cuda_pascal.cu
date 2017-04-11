@@ -12,10 +12,12 @@ void copydata(const uint32_t *data);
 static THREAD uint32_t *d_result;
 
 #define TPB 512
-#define NONCES_PER_THREAD 4
+#define NONCES_PER_THREAD 1
 
 #define rot1(x) (ROTR32(x, 6) ^ ROTR32(x, 11) ^ ROTR32(x, 25))
 #define rot2(x) (ROTR32(x, 2) ^ ROTR32(x, 13) ^ ROTR32(x, 22))
+#define s0(x) (ROTR32(x, 7) ^ ROTR32(x, 18) ^ (x >> 3))
+#define s1(x) (ROTR32(x, 17) ^ ROTR32(x, 19) ^ (x >> 10))
 
 #define maj(e, f, g) (g ^ (e & (f ^ g)))
 //#define maj(e, f, g) ((e & f) ^ ((~e) & g))
@@ -60,7 +62,7 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 	const uint32_t threadindex = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (threadindex < threads)
 	{
-		uint32_t s0, s1, t1, a, b, c, d, e, f, g, h;
+		uint32_t t1, a, b, c, d, e, f, g, h;
 		uint32_t w[64];
 		const uint32_t numberofthreads = blockDim.x*gridDim.x;
 		const uint32_t maxnonce = startnonce + threadindex + numberofthreads * (NONCES_PER_THREAD - 1);
@@ -74,9 +76,7 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 #pragma unroll
 			for(int i = 16; i <= 63; i++)
 			{
-				s0 = ROTR32(w[i - 15], 7) ^ ROTR32(w[i - 15], 18) ^ (w[i - 15] >> 3);
-				s1 = ROTR32(w[i - 2], 17) ^ ROTR32(w[i - 2], 19) ^ (w[i - 2] >> 10);
-				w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+				w[i] = w[i - 16] + s0(w[i - 15]) + w[i - 7] + s1(w[i - 2]);
 			}
 
 			a = ms0;
@@ -163,25 +163,29 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 			w[0] = a + ms0; w[1] = b + ms1; w[2] = c + ms2; w[3] = d + ms3;
 			w[4] = e + ms4; w[5] = f + ms5; w[6] = g + ms6; w[7] = h + ms7;
 			// hash the hash ***************************************************************
-			w[16] = w[0] + (ROTR32(w[1], 7) ^ ROTR32(w[1], 18) ^ (w[1] >> 3));
-			w[17] = w[1] + (ROTR32(w[2], 7) ^ ROTR32(w[2], 18) ^ (w[2] >> 3)) + (ROTR32(0x100, 17) ^ ROTR32(0x100, 19) ^ (0x100 >> 10));
-			w[18] = w[2] + (ROTR32(w[3], 7) ^ ROTR32(w[3], 18) ^ (w[3] >> 3)) + (ROTR32(w[16], 17) ^ ROTR32(w[16], 19) ^ (w[16] >> 10));
-			w[19] = w[3] + (ROTR32(w[4], 7) ^ ROTR32(w[4], 18) ^ (w[4] >> 3)) + (ROTR32(w[17], 17) ^ ROTR32(w[17], 19) ^ (w[17] >> 10));
-			w[20] = w[4] + (ROTR32(w[5], 7) ^ ROTR32(w[5], 18) ^ (w[5] >> 3)) + (ROTR32(w[18], 17) ^ ROTR32(w[18], 19) ^ (w[18] >> 10));
-			w[21] = w[5] + (ROTR32(w[6], 7) ^ ROTR32(w[6], 18) ^ (w[6] >> 3)) + (ROTR32(w[19], 17) ^ ROTR32(w[19], 19) ^ (w[19] >> 10));
-			w[22] = w[6] + 0x100 + (ROTR32(w[7], 7) ^ ROTR32(w[7], 18) ^ (w[7] >> 3)) + (ROTR32(w[20], 17) ^ ROTR32(w[20], 19) ^ (w[20] >> 10));
-			w[23] = w[7] + w[16] + 0x11002000U + (ROTR32(w[21], 17) ^ ROTR32(w[21], 19) ^ (w[21] >> 10));
-			w[24] = 0x80000000U + w[17] + (ROTR32(w[22], 17) ^ ROTR32(w[22], 19) ^ (w[22] >> 10));
-			w[25] = w[18] + (ROTR32(w[23], 17) ^ ROTR32(w[23], 19) ^ (w[23] >> 10));
-			w[26] = w[19] + (ROTR32(w[24], 17) ^ ROTR32(w[24], 19) ^ (w[24] >> 10));
-			w[27] = w[20] + (ROTR32(w[25], 17) ^ ROTR32(w[25], 19) ^ (w[25] >> 10));
-			w[28] = w[21] + (ROTR32(w[26], 17) ^ ROTR32(w[26], 19) ^ (w[26] >> 10));
-			w[29] = w[22] + (ROTR32(w[27], 17) ^ ROTR32(w[27], 19) ^ (w[27] >> 10));
-			w[30] = w[23] + (ROTR32(0x100, 7) ^ ROTR32(0x100, 18) ^ (0x100 >> 3)) + (ROTR32(w[28], 17) ^ ROTR32(w[28], 19) ^ (w[28] >> 10));
-			w[31] = 0x100 + w[24] + (ROTR32(w[16], 7) ^ ROTR32(w[16], 18) ^ (w[16] >> 3)) + (ROTR32(w[29], 17) ^ ROTR32(w[29], 19) ^ (w[29] >> 10));
+			// w[8] = 0x80000000U;
+			// w[15] = 0x100;
+			w[16] = w[0]        + s0(w[1]);
+			w[17] = w[1]        + s0(w[2])                 + s1(0x100);
+			w[18] = w[2]        + s0(w[3])                 + s1(w[16]);
+			w[19] = w[3]        + s0(w[4])                 + s1(w[17]);
+			w[20] = w[4]        + s0(w[5])                 + s1(w[18]);
+			w[21] = w[5]        + s0(w[6])                 + s1(w[19]);
+			w[22] = w[6]        + s0(w[7])        + 0x100  + s1(w[20]);
+			w[23] = w[7]        + s0(0x80000000U) + w[16]  + s1(w[21]);
+			w[24] = 0x80000000U                   + w[17]  + s1(w[22]);
+			w[25] =                                 w[18]  + s1(w[23]);
+			w[26] =                                 w[19]  + s1(w[24]);
+			w[27] =                                 w[20]  + s1(w[25]);
+			w[28] =                                 w[21]  + s1(w[26]);
+			w[29] =                                 w[22]  + s1(w[27]);
+			w[30] =               s0(0x100)       + w[23]  + s1(w[28]);
+			w[31] = 0x100       + s0(w[16])       + w[24]  + s1(w[29]);
 #pragma unroll
-			for (int i = 32; i < 64; i++)
-				w[i] = w[i - 16] + w[i - 7] + (ROTR32(w[i - 15], 7) ^ ROTR32(w[i - 15], 18) ^ (w[i - 15] >> 3)) + (ROTR32(w[i - 2], 17) ^ ROTR32(w[i - 2], 19) ^ (w[i - 2] >> 10));
+			for(int i = 32; i <= 63; i++)
+			{
+				w[i] = w[i - 16] + s0(w[i - 15]) + w[i - 7] + s1(w[i - 2]);
+			}
 
 			d = 0x98c7e2a2U + w[0];
 			h = 0xfc08884dU + w[0];
@@ -302,9 +306,7 @@ void pascal_gpu_hash(const uint32_t threads, uint32_t *const result, const uint3
 		} // nonce loop
 	} // if thread<threads
 }
-/*
-#define s0(x) (ROTR32(x, 7) ^ ROTR32(x, 18) ^ (x >> 3))
-#define s1(x) (ROTR32(x, 17) ^ ROTR32(x, 19) ^ (x >> 10))
+
 __global__ __launch_bounds__(TPB, 2)
 void pascal_8bytes_gpu_hash(const uint32_t threads, uint32_t *const result, const uint32_t startnonce, uint32_t ms0, const uint32_t ms1, const uint32_t ms2, const uint32_t ms3, const uint32_t ms4, const uint32_t ms5, const uint32_t ms6, const uint32_t ms7)
 {
@@ -316,19 +318,19 @@ void pascal_8bytes_gpu_hash(const uint32_t threads, uint32_t *const result, cons
 		const uint32_t numberofthreads = blockDim.x*gridDim.x;
 		const uint32_t maxnonce = startnonce + threadindex + numberofthreads * (NONCES_PER_THREAD - 1);
 
-		for(uint32_t nonce = startnonce + threadindex; nonce <= maxnonce; nonce += numberofthreads)
+		for(uint32_t nonce = startnonce + threadindex; nonce-1 < maxnonce; nonce += numberofthreads)
 		{
 			w[0] = c_data[0];
 			w[1] = nonce;
-			w[2] = 0x80;
-			w[15] = 0x40060000;
+			w[2] = 0x80000000;
+			w[15] = 0x0640;
 			w[16] = c_data[0] + s0(c_data[1]);
-			w[17] = c_data[1] + s0(0x80) + s1(0x40060000);
-			w[18] = 0x80 + s1(w[16]);
+			w[17] = c_data[1] + s0(0x80000000) + s1(0x0640);
+			w[18] = 0x80000000 + s1(w[16]);
 			w[19] = s1(w[17]);
 			w[20] = s1(w[18]);
 			w[21] = s1(w[19]);
-			w[22] = 0x40060000 + s1(w[20]);
+			w[22] = 0x0640 + s1(w[20]);
 			w[23] = w[16] + s1(w[21]);
 			w[24] = w[17] + s1(w[22]);
 			w[25] = w[18] + s1(w[23]);
@@ -336,8 +338,8 @@ void pascal_8bytes_gpu_hash(const uint32_t threads, uint32_t *const result, cons
 			w[27] = w[20] + s1(w[25]);
 			w[28] = w[21] + s1(w[26]);
 			w[29] = w[22] + s1(w[27]);
-			w[31] = s0(0x40060000) + w[23] + s1(w[28]);
-			w[32] = 0x40060000 + s0(w[16]) + w[24] + s1(w[29]);
+			w[31] = s0(0x0640) + w[23] + s1(w[28]);
+			w[32] = 0x0640 + s0(w[16]) + w[24] + s1(w[29]);
 
 #pragma unroll
 			for(int i = 33; i <= 63; i++)
@@ -877,14 +879,11 @@ void pascal_8bytes_gpu_hash(const uint32_t threads, uint32_t *const result, cons
 		} // nonce loop
 	} // if thread<threads
 }
-*/
+
 __host__
 void pascal_cpu_hash(int thr_id, uint32_t threads, uint32_t startnonce, uint32_t nonceoffset, uint32_t *ms, uint32_t *h_result)
 {
-
 	uint32_t grid = (threads + TPB*NONCES_PER_THREAD - 1) / TPB / NONCES_PER_THREAD;
-
-	CUDA_SAFE_CALL(cudaMemset(d_result, 0, 8));
 
 //	if(nonceoffset == 4)
 //		pascal_8bytes_gpu_hash << <grid, TPB >> > (threads, d_result, startnonce, ms[0], ms[1], ms[2], ms[3], ms[4], ms[5], ms[6], ms[7]);
@@ -902,6 +901,6 @@ void pascal_cpu_init(int thr_id)
 void copydata(const uint32_t *data)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(c_data, data, 16*4, 0, cudaMemcpyHostToDevice));
-
+	CUDA_SAFE_CALL(cudaMemset(d_result, 0, 8));
 }
 
